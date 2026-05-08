@@ -7,6 +7,9 @@ $root_dir = File.expand_path('..', __FILE__)
 # Load and bootstrap RubyCA
 require 'core/load'
 require 'core/bootstrap'
+require 'core/ca/setup'
+require 'core/web/server'
+require 'core/web/flash'
 
 # Start server
 if $config['web']['port'] < 1024
@@ -14,7 +17,7 @@ if $config['web']['port'] < 1024
     puts "\nError:" 
     puts "RubyCA is configured to use ports under 1024. Root access is required."
     puts "Once the server bind configured port, root rights will be reduced to regular user privileges.\n\n"
-    puts "Please execute RubyCA with the command \"sudo./RubyCA\""
+    puts "Please execute RubyCA with the command \"sudo ./RubyCA\""
     puts "or modify the configuration file to set a port greater than 1024.\n\n"
     abort
   end

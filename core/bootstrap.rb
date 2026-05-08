@@ -1,6 +1,7 @@
 if __FILE__ == $0 then abort 'This file forms part of RubyCA and is not designed to be called directly. Please run ./RubyCA instead.' end
 
 require 'core/privileges'
+require 'core/aux'
 
 # DataMapper::Logger.new($stdout, :debug)
 DataMapper.setup(:default, "sqlite3://#{$root_dir}/RubyCA.db")
@@ -19,7 +20,3 @@ RubyCA::Core::Models::Revoked.auto_upgrade!
 RubyCA::Core::Models::CRL.auto_upgrade! 
 RubyCA::Core::Models::CertificateSchema.auto_upgrade! 
 
-require 'core/aux'
-require 'core/ca/setup'
-require 'core/web/server'
-require 'core/web/flash'

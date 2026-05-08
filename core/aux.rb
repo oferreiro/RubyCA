@@ -1,10 +1,11 @@
 if __FILE__ == $0 then abort 'This file forms part of RubyCA and is not designed to be called directly. Please run ./RubyCA instead.' end
 
-def get_crl_dist_uri
+def get_crl_dist_uri(crl_id=2)
   # CRL distribuition URI.
+  crl_dist_config = $config['ca']['crl']['dist']
   crldist=nil
-  unless $config['ca']['crl']['dist'].nil? || $config['ca']['crl']['dist']['uri'].nil? || $config['ca']['crl']['dist']['uri'].empty? || $config['ca']['crl']['dist']['uri'] ===''
-    crldist = $config['ca']['crl']['dist']['uri'].map{|uri| "URI:#{uri}"}.join(',')
+  unless crl_dist_config.nil? || crl_dist_config['uri_prefix'].nil? || crl_dist_config['uri_prefix'].empty? || crl_dist_config['uri_prefix'] ===''
+    crldist = crl_dist_config['uri_prefix'].map{|uri| "URI:#{uri}/ca-#{crl_id}.crl"}.join(',')
   end
   return crldist
 end

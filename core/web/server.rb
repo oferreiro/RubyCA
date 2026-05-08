@@ -75,9 +75,9 @@ module RubyCA
             auth.provided? && auth.basic? && auth.credentials && @user == Digest::SHA2.hexdigest(auth.credentials[0]) && @pass == Digest::SHA2.hexdigest(auth.credentials[1])
           end
           
-          def get_crl_info
-            crl_rec = RubyCA::Core::Models::CRL.last.crl
-            crl = OpenSSL::X509::CRL.new crl_rec
+          def get_crl_info(id)
+            crl_rec = RubyCA::Core::Models::CRL.get(id)
+            crl = OpenSSL::X509::CRL.new crl_rec.crl
             issuer = {}
             crl.issuer().to_s.split("/").each do |x|
               if x!=""
@@ -86,6 +86,7 @@ module RubyCA
               end
             end
             crl_info = {}
+            crl_info[:id] = crl_rec.id
             crl_info[:issuer] = issuer
             crl_info[:last_update] = Time.parse(crl.last_update().to_s)
             crl_info[:next_update] = Time.parse(crl.next_update().to_s)
@@ -99,7 +100,6 @@ module RubyCA
             if Time.now.utc + (5*24*60*60) > crl_info[:next_update]
               crl_info[:to_expire] = true
             end
-            
             crl_info
           end
         end
@@ -123,6 +123,26 @@ module RubyCA
         
         get '/crl.pem' do
           @crl = OpenSSL::X509::CRL.new RubyCA::Core::Models::CRL.last.crl
+          content_type :crl
+          @crl.to_pem
+        end
+
+        get '/ca-:id.crl' do
+          crl_rec = RubyCA::Core::Models::CRL.get(params[:id])
+          unless crl_rec
+            halt 404
+          end
+          @crl = OpenSSL::X509::CRL.new crl_rec.crl
+          content_type :crl
+          @crl.to_der
+        end
+
+        get '/ca-:id.pem' do
+          crl_rec = RubyCA::Core::Models::CRL.get(params[:id])
+          unless crl_rec
+            halt 404
+          end
+          @crl = OpenSSL::X509::CRL.new crl_rec.crl
           content_type :crl
           @crl.to_pem
         end
@@ -277,7 +297,11 @@ module RubyCA
         # CRL
         #
         get '/admin/crl' do
-          @crl_info = get_crl_info
+          crl_recs = RubyCA::Core::Models::CRL.all
+          @crl_infos = []
+          crl_recs.each do |crl_rec|
+            @crl_infos <<  get_crl_info(crl_rec.id)
+          end
           @crl_dist = $config['ca']['crl']['dist']['uri']
           haml :crl
         end
@@ -324,16 +348,17 @@ module RubyCA
           
           redirect '/admin/crl'
         end
-        
-        get '/admin/crl/info' do
-          crl_rec = RubyCA::Core::Models::CRL.last
+                
+        get '/admin/crl/:id/info' do
+          crl_rec = RubyCA::Core::Models::CRL.get(params[:id])
           crl = OpenSSL::X509::CRL.new crl_rec.crl
           content_type :txt
           crl.to_text 
         end
         
         get '/admin/crl/renew' do
-          @crl_info = get_crl_info 
+          intermediate = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['intermediate']['cn'])
+          @crl_info = get_crl_info(intermediate.id)
           if @crl_info[:expired] || @crl_info[:to_expire]
             haml :crlrenew
           else            
@@ -352,7 +377,7 @@ module RubyCA
             redirect "/admin/crl/renew"
           end
           
-          crl_info = get_crl_info
+          crl_info = get_crl_info(intermediate.id)
           if !crl_info[:expired] && !crl_info[:to_expire]
             flash.next[:danger] = "CRL is not expired or to expire. Renewal is not necessary now."
             redirect '/admin/crl'
@@ -377,16 +402,17 @@ module RubyCA
           content_buffer += " RubyCA - Renew CRL\n\n"
           content_buffer += "---------------------------------------------------------------\n"
           intermediate = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['intermediate']['cn'])
-          validpw = true
+          validpw = false
           begin
             intermediate_key = OpenSSL::PKey::RSA.new intermediate.pkey, params[:passphrase][:intermediate]
+            validpw = true
           rescue OpenSSL::PKey::RSAError
             session[:sign] = params
             validpw = false
             content_buffer += "Incorrect intermediate CA key passphrase\n"
           end
           if validpw
-            crl_info = get_crl_info
+            crl_info = get_crl_info(intermediate.id)
             if !crl_info[:expired] && !crl_info[:to_expire]
               content_buffer += "CRL is not expired or to expire. Renewal is not necessary now.\n"
             else
@@ -494,7 +520,7 @@ module RubyCA
         
         get '/admin/csrs/:cn/sign/?' do     
           if RubyCA::Core::Models::Certificate.get_by_cn(params[:cn])
-            flash.next[:danger] = "A certificate already exists for '#{params[:cn]}', revoke  and delete the old certificate before signing this request"
+            flash.next[:danger] = "A certificate already exists for '#{params[:cn]}', revoke and delete the old certificate before signing this request"
             redirect '/admin/csrs'
           end
           
@@ -629,23 +655,21 @@ module RubyCA
         
         get '/admin/certificates/:cn.crt' do
           @crt = RubyCA::Core::Models::Certificate.get_by_cn( params[:cn] )
-          if @crt
-            content_type :crt
-            @crt.crt
-          else
-             halt 404
+          unless @crt
+            halt 404
           end
+          content_type :crt
+          @crt.crt
         end
         
         get '/admin/certificates/:cn/info/?' do
           raw =  RubyCA::Core::Models::Certificate.get_by_cn( params[:cn] )
-          if raw
-            crt = OpenSSL::X509::Certificate.new raw.crt
-            content_type :txt
-            crt.to_text 
-          else
+          unless raw
             halt 404
           end
+          crt = OpenSSL::X509::Certificate.new raw.crt
+          content_type :txt
+          crt.to_text           
         end
         
         get '/admin/certificates/chain/:cn.crt' do
@@ -891,7 +915,7 @@ module RubyCA
             flash.next[:danger] = "Incorrect intermediate passphrase"
             redirect "/admin/certificates/#{params[:cn]}/revoke"
           end
-          @crl = RubyCA::Core::Models::CRL.get(1)
+          @crl = RubyCA::Core::Models::CRL.get(@intermediate.id)
           crl = OpenSSL::X509::CRL.new @crl.crl
           crl.add_revoked revoked
           crl.last_update = Time.now

@@ -21,7 +21,7 @@ require 'base64'
 
 # Test config file exists
 CFG_FILE = $root_dir + '/config/rubyca.yml'
-unless File.exists?(CFG_FILE) or File.file?(CFG_FILE)
+unless File.exist?(CFG_FILE) or File.file?(CFG_FILE)
   puts ''
   puts 'Error: RubyCA requires config/rubyca.yml'
   puts "Please run create it"

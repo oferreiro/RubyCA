@@ -50,6 +50,7 @@ def gen_self_signed_root(cipher)
   @root_crt = RubyCA::Core::Models::Certificate.create( cn: "#{$config['ca']['root']['cn']}" )
   @root_crt.crt = root_crt.to_pem
   @root_crt.save
+  create_crl(root_key, root_crt, @root_crt.id, 3650)
   
   return root_key,root_crt
 end
@@ -92,18 +93,41 @@ def gen_intermediate(root_key, root_crt, cipher)
   intermediate_crt.sign root_key, OpenSSL::Digest::SHA512.new
   @intermediate_crt.crt = intermediate_crt.to_pem
   @intermediate_crt.save
+  create_crl(@intermediate_crt.id, intermediate_key, intermediate_crt, 30)
   return intermediate_key, intermediate_crt
 end
 
-def create_crl(key, cert)
+def create_crl(cert_id, key, cert, valid_days)
   # Create CRL
   crl = OpenSSL::X509::CRL.new
   crl.version = 1
   crl.issuer = cert.subject
   crl.last_update = Time.now
-  crl.next_update = Time.now + 60 * 60 * 24 * 30
+  crl.next_update = Time.now + valid_days * 24 * 60 * 60
   crl.sign key, OpenSSL::Digest::SHA512.new
-  @crl = RubyCA::Core::Models::CRL.create( crl: crl.to_pem )
+  @crl = RubyCA::Core::Models::CRL.create(id: cert_id, crl: crl.to_pem)
+end
+
+def renew_crl(crl_id, key, cert, valid_days)
+  crl_rec = RubyCA::Core::Models::CRL.get(crl_id)
+  crl = OpenSSL::X509::CRL.new crl_rec.crl
+  
+  crl.last_update = Time.now
+  crl.next_update = Time.now + valid_days * 24 * 60 * 60
+  crl.sign key, OpenSSL::Digest::SHA512.new
+
+  crl_rec.crl = crl.to_pem
+  crl_rec.save
+end
+
+def renew_root_crl(key_pass)
+  
+  enc_key = File.read($root_dir + "/private/root_ca.pem")
+  root_key = OpenSSL::PKey::RSA.new enc_key, key_pass
+  root_rec = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['root']['cn'])
+  root_cert  = OpenSSL::X509::Certificate.new root_rec.crt
+  renew_crl(root_rec.id, root_key, root_cert, 3650)
+  
 end
 
 # Check if the root certificate exists, if not, continue with generation
@@ -153,8 +177,7 @@ unless RubyCA::Core::Models::Config.get('first_run_complete')
   cipher = OpenSSL::Cipher.new 'AES-256-CBC'
   
   root_key, root_crt = gen_self_signed_root(cipher)
-  intermediate_key, intermediate_crt = gen_intermediate(root_key, root_crt, cipher)
-  create_crl(intermediate_key, intermediate_crt)
+  intermediate_key, intermediate_crt = gen_intermediate(root_key, root_crt, cipher)  
   
   # Finish up
   puts ''
@@ -196,5 +219,3 @@ unless RubyCA::Core::Models::Config.get('first_run_complete')
     end
   end
 end
-  
-

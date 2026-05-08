@@ -9,7 +9,6 @@ module RubyCA
         property :id, Serial
         property :crl, Text
       end
-    
     end
   end
 end

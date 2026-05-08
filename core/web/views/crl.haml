@@ -9,25 +9,26 @@
         %th Next Update (UTC)
         %th
     %tbody
-      %tr
-        %td
-          = @crl_info[:issuer]['CN']
-        %td
-          = @crl_info[:last_update].strftime('%d/%m/%y %H:%M:%S')
-        %td
-          = @crl_info[:next_update].strftime('%d/%m/%y %H:%M:%S')  
-        %td.float-right
-          .btn-group
-            %a.btn.btn-sm.btn-info{ href: '/admin/crl/info', 'data-get'=>'modal',  'data-title' => 'CRL Info'}
-              %i.fas.fa-info-circle
-              %span.d-none.d-md-inline Info
-            %a.btn.btn-sm.btn-primary{ :href => '/ca.crl'}
-              %i.fas.fa-download
-              %span.d-none.d-md-inline Download 
-            - if @crl_info[:expired] || @crl_info[:to_expire]
-              %a.btn.btn-sm.btn-warning{ :href => '/admin/crl/renew'}
-                %i.fas.fa-sync
-                %span.d-none.d-md-inline Renew
+      - @crl_infos.each do |crl_info|
+        %tr
+          %td
+            = crl_info[:issuer]['CN']
+          %td
+            = crl_info[:last_update].strftime('%d/%m/%y %H:%M:%S')
+          %td
+            = crl_info[:next_update].strftime('%d/%m/%y %H:%M:%S')  
+          %td.float-right
+            .btn-group
+              %a.btn.btn-sm.btn-info{ href: "/admin/crl/#{crl_info[:id]}/info", 'data-get'=>'modal',  'data-title' => 'CRL Info'}
+                %i.fas.fa-info-circle
+                %span.d-none.d-md-inline Info
+              %a.btn.btn-sm.btn-primary{ href: "/ca-#{crl_info[:id]}.crl"}
+                %i.fas.fa-download
+                %span.d-none.d-md-inline Download 
+              - if crl_info[:expired] || crl_info[:to_expire]
+                %a.btn.btn-sm.btn-warning{ :href => '/admin/crl/renew'}
+                  %i.fas.fa-sync
+                  %span.d-none.d-md-inline Renew
 .row
   %legend Config
   .col-md-6.col-xs-12.pull-left

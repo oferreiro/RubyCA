@@ -33,7 +33,7 @@ ca:
   crl:
     default_expiration: 30 # Number of days crl will be valid
     dist:
-      uri:
+      uri_prefix:
        #- 'http://www.example.com/ca.crl' # e.g.
 
 # used only for RubyCA module
