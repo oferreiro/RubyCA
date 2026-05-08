@@ -3,8 +3,8 @@ if __FILE__ == $0 then abort 'This file forms part of RubyCA and is not designed
 def get_crl_dist_uri(crl_id=2)
   # CRL distribuition URI.
   crl_dist_config = $config['ca']['crl']['dist']
-  crldist=nil
-  unless crl_dist_config.nil? || crl_dist_config['uri_prefix'].nil? || crl_dist_config['uri_prefix'].empty? || crl_dist_config['uri_prefix'] ===''
+  crldist=nil  
+  unless RubyCA::Core::Models::CRL.get(crl_id).nil? || crl_dist_config.nil? || crl_dist_config['uri_prefix'].nil? || crl_dist_config['uri_prefix'].empty? || crl_dist_config['uri_prefix'] ===''
     crldist = crl_dist_config['uri_prefix'].map{|uri| "URI:#{uri}/ca-#{crl_id}.crl"}.join(',')
   end
   return crldist

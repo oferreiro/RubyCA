@@ -44,7 +44,6 @@ def gen_self_signed_root(cipher)
   root_crt.add_extension root_ef.create_extension 'subjectKeyIdentifier', 'hash'
   root_crt.add_extension root_ef.create_extension 'basicConstraints', 'CA:TRUE', true
   root_crt.add_extension root_ef.create_extension 'keyUsage', 'cRLSign,keyCertSign', true
-  root_crt.add_extension root_ef.create_extension 'crlDistributionPoints', "#{get_crl_dist_uri}" unless get_crl_dist_uri.nil?
   
   root_crt.sign root_key, OpenSSL::Digest::SHA512.new
   @root_crt = RubyCA::Core::Models::Certificate.create( cn: "#{$config['ca']['root']['cn']}" )
