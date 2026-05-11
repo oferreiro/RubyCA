@@ -7,7 +7,13 @@ module Sinatra
       def styled_flash(key=:flash)
         return "" if flash(key).empty?
         id = (key == :flash ? "flash" : "flash_#{key}")
-        messages = flash(key).collect {|message| "  <div class='alert alert-#{message[0]}'><button type='button' class='close' data-dismiss='alert'>&times;</button><strong>#{message[0].capitalize}: </strong>#{message[1]}</div>\n"}
+        #<div class="alert alert-${type} alert-dismissible" >`,
+        # `   <div>${message}</div>`,
+        # '   <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>',
+        # '</div>'
+        messages = flash(key).collect { |message|
+          "<div class='alert alert-dismissible alert-#{message[0]}'><button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button><strong>#{message[0].capitalize}: </strong>#{message[1]}</div>\n"
+        }
         messages.join
       end
       

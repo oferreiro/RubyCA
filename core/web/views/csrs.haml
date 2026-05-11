@@ -2,9 +2,9 @@
 
 %nav
   #nav-tab.nav.nav-tabs{:role => 'tablist'}
-    %button#nav-sign-csr-tab.nav-link{:class => ('active' if @csrs.any? && @csr.nil?), 'aria-controls' => 'nav-sign-csr', 'aria-selected' => 'true', 'data-target' => '#nav-sign-csr', 'data-toggle' => 'tab', :role => 'tab', :type => 'button'} Sign CSR
-    %button#nav-create-csr-tab.nav-link{:class => ('active' unless @csrs.any? && @csr.nil?), 'aria-controls' => 'nav-create-csr', 'aria-selected' => 'false', 'data-target' => '#nav-create-csr', 'data-toggle' => 'tab', :role => 'tab', :type => 'button'} Create CSR
-    %button#nav-schema-tab.nav-link{'aria-controls' => 'nav-schema', 'aria-selected' => 'false', 'data-target' => '#nav-schema', 'data-toggle' => 'tab', :role => 'tab', :type => 'button'} Load Schema
+    %button#nav-sign-csr-tab.nav-link{:class => ('active' if @csrs.any? && @csr.nil?), 'aria-controls' => 'nav-sign-csr', 'aria-selected' => 'true', 'data-bs-target' => '#nav-sign-csr', 'data-bs-toggle' => 'tab', :role => 'tab', :type => 'button'} Sign CSR
+    %button#nav-create-csr-tab.nav-link{:class => ('active' unless @csrs.any? && @csr.nil?), 'aria-controls' => 'nav-create-csr', 'aria-selected' => 'false', 'data-bs-target' => '#nav-create-csr', 'data-bs-toggle' => 'tab', :role => 'tab', :type => 'button'} Create CSR
+    %button#nav-schema-tab.nav-link{'aria-controls' => 'nav-schema', 'aria-selected' => 'false', 'data-bs-target' => '#nav-schema', 'data-bs-toggle' => 'tab', :role => 'tab', :type => 'button'} Load Schema
     
   #nav-tabContent.tab-content
     #nav-sign-csr.tab-pane.fade{:class => ('active show' if @csrs.any? && @csr.nil?),'aria-labelledby' => 'nav-sign-csr-tab', :role => 'tabpanel'}
@@ -24,19 +24,20 @@
                 %td 
                   = csr.o
 
-                %td.float-right
-                  %form{ :action => "/admin/csrs/#{csr.cn}", :method => 'POST', :onsubmit => "return confirm('Are you sure you want to delete this request?')"  }
-                    .btn-group{role: 'group' }
-                      %a.btn.btn-sm.btn-info{ href: "/admin/csrs/#{csr.cn}/info" , 'data-get' => 'modal',  'data-title' => 'CSR Info' }
-                        %i.fas.fa-info-circle
-                        %span.d-none.d-md-inline Info
-                      %a.btn.btn-primary.btn-sm{ href: "/admin/csrs/#{csr.cn}/sign" }
-                        %i.fas.fa-pen
-                        %span.d-none.d-md-inline Sign
-                      %input{ type: 'hidden', name: '_method', value: 'DELETE'} 
-                      %button.btn.btn-danger.btn-sm{ :type => 'submit' }
-                        %i.fas.fa-trash
-                        %span.d-none.d-md-inline Delete
+                %td
+                  .float-end
+                    %form{ :action => "/admin/csrs/#{csr.cn}", :method => 'POST', :onsubmit => "return confirm('Are you sure you want to delete this request?')"  }
+                      .btn-group{role: 'group' }
+                        %a.btn.btn-sm.btn-info{ href: "/admin/csrs/#{csr.cn}/info" , 'data-bs-get' => 'modal',  'data-bs-title' => 'CSR Info' }
+                          %i.fas.fa-info-circle
+                          %span.d-none.d-md-inline Info
+                        %a.btn.btn-primary.btn-sm{ href: "/admin/csrs/#{csr.cn}/sign" }
+                          %i.fas.fa-pen
+                          %span.d-none.d-md-inline Sign
+                        %input{ type: 'hidden', name: '_method', value: 'DELETE'} 
+                        %button.btn.btn-danger.btn-sm{ :type => 'submit' }
+                          %i.fas.fa-trash
+                          %span.d-none.d-md-inline Delete
           -else
             %tr
               %td{ colspan: 3}
@@ -44,42 +45,40 @@
                 
     #nav-create-csr.tab-pane.fade{:class => ('active show' unless @csrs.any? && @csr.nil?),'aria-labelledby' => 'nav-create-csr-tab', :role => 'tabpanel'}      
       %form#csr.form-horizontal{ action: '/admin/csrs', method: 'post' }
-        %fieldset.form-group
-          %legend Create CSR      
-          .form-group
+        %fieldset.mb-3
+          %legend Create CSR
+          .mb-3
             %label{ for: 'cn' } Common Name
             %input.form-control#cn{ name: 'csr[cn]', type: 'text', placeholder: 'e.g. www.acme.com', value: @csr.nil? ? '' : @csr[:cn] }
-          .form-group
+          .mb-3
             %label{ for: 'o' } Organisation
             %input.form-control#o{ name: 'csr[o]', type: 'text', placeholder: 'e.g. ACME Ltd', value: @csr.nil? ? '' : @csr[:o] }
-          .form-group
+          .mb-3
             %label{ for: 'l' } Locality
             %input.form-control#l{ name: 'csr[l]', type: 'text', placeholder: 'e.g. Birmingham', value: @csr.nil? ? '' : @csr[:l] }
-          .form-group
+          .mb-3
             %label{ for: 'st' } State
             %input.form-control#st{ name: 'csr[st]', type: 'text', placeholder: 'e.g. West Midlands', value: @csr.nil? ? '' : @csr[:st] }
-          .form-group
+          .mb-3
             %label{ for: 'c' } Country Code
             %input.form-control#c{ name: 'csr[c]', type: 'text', placeholder: 'e.g. GB', value: @csr.nil? ? '' : @csr[:c] }
-          .form-group
+          .mb-3
             %label{ for: 'passphrase' } Key Passphrase
             .input-group
               %input.form-control#passphrase{ name: 'csr[passphrase]', type: 'password', autocomplete: 'off', placeholder: '' }
-              .input-group-append
-                %span.input-group-text.show-pass{ title: 'Show password', 'data-toggle' => 'tooltip' }
-                  %i.fas.fa-eye
-                %a.btn.btn-dark#genpw{ title: 'Generate random password', 'data-toggle' => 'tooltip' }
-                  %i.fas.fa-cogs
-                  %span.d-none.d-md-inline Generate
-          .form-group
+              %span.input-group-text.show-pass{ title: 'Show password', 'data-bs-toggle' => 'tooltip' }
+                %i.fas.fa-eye
+              %a.btn.btn-dark#genpw{ title: 'Generate random password', 'data-bs-toggle' => 'tooltip' }
+                %i.fas.fa-cogs
+                %span.d-none.d-md-inline Generate
+          .mb-3
             %label{ for: 'passphrase-confirm' } Confirm Passphrase
             .input-group
               %input.form-control#passphrase-confirm{ name: 'csr[confirm]', type: 'password', autocomplete: 'off', placeholder: '' }
-              .input-group-append
-                %span.input-group-text.show-pass{ title: 'Show password', 'data-toggle' => 'tooltip' }
-                  %i.fas.fa-eye
+              %span.input-group-text.show-pass{ title: 'Show password', 'data-bs-toggle' => 'tooltip' }
+                %i.fas.fa-eye
 
-        .form-group
+        .mb-3
           %button.btn.btn-primary{ type: 'submit' } Create New
           - if !@csr.nil?
             %a.btn.btn.btn-secondary{ href: '/admin/csrs/cancel' } Cancel
@@ -115,4 +114,4 @@
               %td{colspan: 3}
                 No Schema added yet!
                 
-      %a.btn.btn.btn-primary.float-right{ href: '/admin/cschemas' } Manage Schemas
+      %a.btn.btn.btn-primary.float-end{ href: '/admin/cschemas' } Manage Schemas

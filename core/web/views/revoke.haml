@@ -12,10 +12,10 @@
 %form#csr.form-horizontal{ action: "/admin/certificates/#{@crt.cn}/revoke", method: 'post' }
   %fieldset
     %legend Enter Intermediate Passphrase to Revoke Certificate
-    .form-group
+    .mb-3
       %label{ for: 'intermediate' } Intermediate CA Key
       %input.form-control#intermediate{ name: 'passphrase[intermediate]', type: 'password', placeholder: '' }
-    .form-group
+    .mb-3
       %input{ type: 'hidden', name: '_method', value: 'DELETE' } 
       %button.btn.btn-danger{ :type => 'submit' }
         %i.fas.fa-remove

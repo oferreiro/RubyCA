@@ -2,21 +2,15 @@ if __FILE__ == $0 then abort 'This file forms part of RubyCA and is not designed
 
 require 'core/privileges'
 require 'core/aux'
+require 'sequel'
+require 'sqlite3'
 
-# DataMapper::Logger.new($stdout, :debug)
-DataMapper.setup(:default, "sqlite3://#{$root_dir}/RubyCA.db")
+#Sequel.connect('sqlite://db/rubyca.db')
+DB = Sequel.connect(adapter: :sqlite, database: "#{$root_dir}/db/rubyca-#{ENV['APP_ENV']}.db", logger: Logger.new("log/db-#{ENV['APP_ENV']}.log"))
+
 require 'core/models/config'
 require 'core/models/csr'
 require 'core/models/certificate'
 require 'core/models/certificate_schema'
 require 'core/models/revoked'
 require 'core/models/crl'
-
-DataMapper.finalize
-RubyCA::Core::Models::Config.auto_upgrade!
-RubyCA::Core::Models::CSR.auto_upgrade! 
-RubyCA::Core::Models::Certificate.auto_upgrade! 
-RubyCA::Core::Models::Revoked.auto_upgrade! 
-RubyCA::Core::Models::CRL.auto_upgrade! 
-RubyCA::Core::Models::CertificateSchema.auto_upgrade! 
-

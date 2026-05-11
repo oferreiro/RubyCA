@@ -12,8 +12,8 @@
 %form#decrypt_rsa.form-horizontal{ action: "/admin/certificates/decrypted/#{@crt.cn}.pem", method: 'post' }
   %fieldset
     %legend Enter Passphrase
-    .form-group
+    .mb-3
       %label{ for: 'certificate' } Certificate Key
       %input.form-control#certificate{ name: 'passphrase[certificate]', type: 'password', autocomplete: 'off', placeholder: '' }
-    .form-group
+    .mb-3
       %button.btn.btn-primary{ type: 'submit' } Get Key

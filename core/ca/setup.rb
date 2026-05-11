@@ -59,7 +59,7 @@ def gen_intermediate(root_key, root_crt, cipher)
   intermediate_key = OpenSSL::PKey::RSA.new 2048
   puts ''
   puts 'Enter a pass phrase for the intermediate CA key.'
-  @intermediate_crt = RubyCA::Core::Models::Certificate.create( cn: "#{$config['ca']['intermediate']['cn']}" )
+  @intermediate_crt = RubyCA::Core::Models::Certificate.create( cn: "#{$config['ca']['intermediate']['cn']}")
   @intermediate_crt.pkey = intermediate_key.export(cipher)
   
   # Generate intermediate csr
@@ -71,7 +71,7 @@ def gen_intermediate(root_key, root_crt, cipher)
   
   # Sign intermediate csr with root certficate
   intermediate_crt = OpenSSL::X509::Certificate.new
-  @serial = RubyCA::Core::Models::Config.get('last_serial')
+  @serial = RubyCA::Core::Models::Config.find(name: 'last_serial')
   intermediate_crt.serial = @serial.value.to_i + 1
   @serial.value = intermediate_crt.serial.to_s
   @serial.save
@@ -86,8 +86,9 @@ def gen_intermediate(root_key, root_crt, cipher)
   intermediate_ef.issuer_certificate = root_crt
   intermediate_crt.add_extension intermediate_ef.create_extension 'subjectKeyIdentifier', 'hash'
   intermediate_crt.add_extension intermediate_ef.create_extension 'basicConstraints', 'CA:TRUE', true
-  intermediate_crt.add_extension intermediate_ef.create_extension 'keyUsage', 'cRLSign,keyCertSign', true 
-  intermediate_crt.add_extension intermediate_ef.create_extension 'crlDistributionPoints', "#{get_crl_dist_uri}" unless get_crl_dist_uri.nil?
+  intermediate_crt.add_extension intermediate_ef.create_extension 'keyUsage', 'cRLSign,keyCertSign', true
+  root_crl_id = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['root']['cn']).crl.id
+  intermediate_crt.add_extension intermediate_ef.create_extension 'crlDistributionPoints', "#{get_crl_dist_uri(root_crl_id)}" unless get_crl_dist_uri(root_crl_id).nil?
 
   intermediate_crt.sign root_key, OpenSSL::Digest::SHA512.new
   @intermediate_crt.crt = intermediate_crt.to_pem
@@ -104,11 +105,11 @@ def create_crl(cert_id, key, cert, valid_days)
   crl.last_update = Time.now
   crl.next_update = Time.now + valid_days * 24 * 60 * 60
   crl.sign key, OpenSSL::Digest::SHA512.new
-  @crl = RubyCA::Core::Models::CRL.create(id: cert_id, crl: crl.to_pem)
+  @crl = RubyCA::Core::Models::Crl.create(id: cert_id, crl: crl.to_pem)
 end
 
 def renew_crl(crl_id, key, cert, valid_days)
-  crl_rec = RubyCA::Core::Models::CRL.get(crl_id)
+  crl_rec = RubyCA::Core::Models::Crl.where(id: crl_id).first
   crl = OpenSSL::X509::CRL.new crl_rec.crl
   
   crl.last_update = Time.now
@@ -130,7 +131,7 @@ def renew_root_crl(key_pass)
 end
 
 # Check if the root certificate exists, if not, continue with generation
-unless RubyCA::Core::Models::Config.get('first_run_complete')
+unless RubyCA::Core::Models::Config.where(name: 'first_run_complete').first
   unsafe_mode = false
   ARGV.each do |p|
     if p === "-u" || p === "--unsafe"

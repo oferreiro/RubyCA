@@ -1,7 +1,8 @@
 jQuery( document ).ready(function( $ ) {
   /*
-  Generic bootstrap 4 modal dialog to get plain text using ajax
+  Generic bootstrap 5 modal dialog to get plain text using ajax
   */
+ 
   $.fn.infomodal = function(title) {
     if(title===undefined || title===null ){
       title= "Info"
@@ -14,21 +15,27 @@ jQuery( document ).ready(function( $ ) {
             // Header
             $("<div/>", {class: "modal-header"}).append(
               $("<h3/>").text(title),
-              $("<button/>", {class: "close", "data-dismiss": "modal",  type: "button"}).html('<span aria-hidden="true">&times;</span>')
+              $("<button/>", { type: "button", class: "btn-close", "data-bs-dismiss": "modal", "aria-label": "Close" })
             ),
             // Body
             $("<div/>", {class: "modal-body"}).append(this),
             //Footer
-            $("<div/>", {class: "modal-footer"}).html('<button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>')                      
+            $("<div/>", {class: "modal-footer"}).html('<button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>')
           )
         )
       )
     );
-    
+
+    $('#infomodal').on('hide.bs.modal', function () {
+      document.activeElement.blur();
+    });
+
     $('#infomodal').on('hidden.bs.modal', function (){
       $('#infomodal').remove();
     });
-    $('#infomodal').modal();
+
+    var infoModal = new bootstrap.Modal(document.getElementById("infomodal"), {});
+    infoModal.show();
   };
   
   $('a#download').click(function(){
@@ -36,15 +43,14 @@ jQuery( document ).ready(function( $ ) {
       window.location.replace("/admin/certificates");
       }, 700);
   });
-  
-  
+
   // trigger to create modal
-  $('[data-get="modal"]').click( function(e) {
+  $('[data-bs-get="modal"]').click( function(e) {
     e.preventDefault();
     
     var modal_title = null;
-    if ($(this).is('[data-title]')) { 
-      modal_title = $(this).attr('data-title')
+    if ($(this).is('[data-bs-title]')) { 
+      modal_title = $(this).attr('data-bs-title')
     };
 		$.ajax({    
       url: $(this).attr("href"), 
@@ -58,8 +64,8 @@ jQuery( document ).ready(function( $ ) {
   });
   
   // BS Tooltip
-  $('[data-toggle="tooltip"]').tooltip();
-  $('[data-toggle="tooltip"]').on('shown.bs.tooltip', function(e) {
+  $('[data-bs-toggle="tooltip"]').tooltip();
+  $('[data-bs-toggle="tooltip"]').on('shown.bs.tooltip', function(e) {
     setTimeout(function () {
       $(e.target).tooltip('hide'); 
     }, 5000);
@@ -78,7 +84,7 @@ jQuery( document ).ready(function( $ ) {
       bt_show_icon.addClass('fa-eye-slash');
       
       bt_show_icon.parent().tooltip('hide')
-                  .attr('data-original-title', 'Hide password')
+                  .attr('data-bs-original-title', 'Hide password')
                   .tooltip('show');
       
 
@@ -91,7 +97,7 @@ jQuery( document ).ready(function( $ ) {
           bt_show_icon.addClass('fa-eye');
           
           bt_show_icon.parent().tooltip('hide')
-                      .attr('data-original-title', 'Show password')
+                      .attr('data-bs-original-title', 'Show password')
                       .tooltip('show');
           
           //bt_show_icon.parent().tooltip('dispose').tooltip({title: 'Show password'}).tooltip('show'); 
@@ -103,14 +109,14 @@ jQuery( document ).ready(function( $ ) {
       bt_show_icon.removeClass('fa-eye-slash');
       bt_show_icon.addClass('fa-eye');
       bt_show_icon.parent().tooltip('hide')
-                  .attr('data-original-title', 'Show password')
+                  .attr('data-bs-original-title', 'Show password')
                   .tooltip('show');
     }
   });
 
   //Generate Password
   $('#genpw').click(function(e){
-    const pw_chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz{}()[]/\#,:;.$=+-*?!@#$%&';
+    const pw_chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz{}()[]<>/\#,:;.$=+-*?!@#$%&';
     const pw_input = $(this).parent().parent().find('#passphrase');
     const bt_show_icon = $(this).parent().find('.input-group-text > i');
     var password = '';
@@ -124,7 +130,7 @@ jQuery( document ).ready(function( $ ) {
     pw_input.val(password);
     bt_show_icon.removeClass('fa-eye');
     bt_show_icon.addClass('fa-eye-slash');
-    bt_show_icon.parent().tooltip('hide').attr('data-original-title', 'Hide password');
+    bt_show_icon.parent().tooltip('hide').attr('data-bs-original-title', 'Hide password');
     pw_input.focus();
 
     pw_input.one('blur', function(e) {
@@ -132,7 +138,7 @@ jQuery( document ).ready(function( $ ) {
         $(this).attr('type', 'password')
         bt_show_icon.removeClass('fa-eye-slash');
         bt_show_icon.addClass('fa-eye');
-        bt_show_icon.parent().tooltip('hide').attr('data-original-title', 'Show password');
+        bt_show_icon.parent().tooltip('hide').attr('data-bs-original-title', 'Show password');
       }
     });
   });

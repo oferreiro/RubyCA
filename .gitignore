@@ -4,6 +4,7 @@ core/ca/last_serial
 tmp/*
 log/*
 *.db
+db/*.db
 *-bak.*
 core/web/public/tmp
 private

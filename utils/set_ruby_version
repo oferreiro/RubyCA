@@ -1,0 +1,1 @@
+export PATH="/usr/local/opt/ruby@4/bin:$PATH"

@@ -17,9 +17,9 @@
             = crl_info[:last_update].strftime('%d/%m/%y %H:%M:%S')
           %td
             = crl_info[:next_update].strftime('%d/%m/%y %H:%M:%S')  
-          %td.float-right
-            .btn-group
-              %a.btn.btn-sm.btn-info{ href: "/admin/crl/#{crl_info[:id]}/info", 'data-get'=>'modal',  'data-title' => 'CRL Info'}
+          %td
+            .btn-group.float-end
+              %a.btn.btn-sm.btn-info{ href: "/admin/crl/#{crl_info[:id]}/info", 'data-bs-get'=>'modal',  'data-bs-title' => 'CRL Info'}
                 %i.fas.fa-info-circle
                 %span.d-none.d-md-inline Info
               %a.btn.btn-sm.btn-primary{ href: "/ca-#{crl_info[:id]}.crl"}
@@ -33,19 +33,19 @@
   %legend Config
   .col-md-6.col-xs-12.pull-left
     %form#cfg_crl_add_uri{ action: '/admin/crl/config', method: 'post' }
-      .form-group
+      .mb-3
         .input-group
           %input{type: 'hidden', value: '1', name: 'ca[crl][dist][add_uri]'} 
-          %input.form-control#add_uri{ name: 'ca[crl][dist][uri]', type: 'text', placeholder: 'CRL Distribution Point url', |
-            'title' => 'e.g. http://domain.com/ca/ca.crl http://ca.domain.com/ca.crl', 'data-toggle' => 'tooltip'}
+          %input.form-control#add_uri{ name: 'ca[crl][dist][uri_prefix]', type: 'text', placeholder: 'CRL Distribution Point url', |
+            'title' => 'e.g. http://domain.com/ca/ca.crl http://ca.domain.com/ca.crl', 'data-bs-toggle' => 'tooltip'}
           
           %span.input-group-btn
             %button.btn.btn-primary{ type: 'submit' } Add
             
     %form#cfg_crl_rm_uri{ action: '/admin/crl/config', method: 'post' }        
-      .form-group
+      .mb-3
         %input{type: 'hidden', value: '1', name: 'ca[crl][dist][rm_uri]'} 
-        %select.form-control#rm_uri{ multiple: 'true', name: 'ca[crl][dist][uri][]' }
+        %select.form-control#rm_uri{ multiple: 'true', name: 'ca[crl][dist][uri_prefix][]' }
           - if !@crl_dist.nil?
             -@crl_dist.each do |uri|
               %option{ value: "#{uri}" } #{uri}

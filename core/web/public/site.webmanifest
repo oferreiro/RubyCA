@@ -1,6 +1,6 @@
 {
-    "name":"RubyCA",
-    "short_name":"Rubyca",
+    "name":"Ruby Certificate Authority",
+    "short_name":"RubyCA",
     "icons":[
         {
             "src":"icons/android-chrome-192x192.png",

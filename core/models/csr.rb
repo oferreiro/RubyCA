@@ -3,16 +3,8 @@ if __FILE__ == $0 then abort 'This file forms part of RubyCA and is not designed
 module RubyCA
   module Core
     module Models
-    
-      class CSR
-          include DataMapper::Resource
-          property :cn, String, :length => 64, unique: true, key: true
-          property :o, String, :length => 64, required: true
-          property :l, String, :length => 64, required: true
-          property :st, String, :length => 64, required: true
-          property :c, String, :length => 64, required: true
-          property :csr, Text
-          property :pkey, Text
+      class Csr < Sequel::Model(:csrs)
+
       end
     end
   end

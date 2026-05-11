@@ -76,7 +76,7 @@ module RubyCA
           end
           
           def get_crl_info(id)
-            crl_rec = RubyCA::Core::Models::CRL.get(id)
+            crl_rec = RubyCA::Core::Models::Crl.find(id: id)
             crl = OpenSSL::X509::CRL.new crl_rec.crl
             issuer = {}
             crl.issuer().to_s.split("/").each do |x|
@@ -116,19 +116,19 @@ module RubyCA
         end
         
         get '/ca.crl' do
-          @crl = OpenSSL::X509::CRL.new RubyCA::Core::Models::CRL.last.crl
+          @crl = OpenSSL::X509::CRL.new RubyCA::Core::Models::Crl.last.crl
           content_type :crl
           @crl.to_der
         end
         
         get '/crl.pem' do
-          @crl = OpenSSL::X509::CRL.new RubyCA::Core::Models::CRL.last.crl
+          @crl = OpenSSL::X509::CRL.new RubyCA::Core::Models::Crl.last.crl
           content_type :crl
           @crl.to_pem
         end
 
         get '/ca-:id.crl' do
-          crl_rec = RubyCA::Core::Models::CRL.get(params[:id])
+          crl_rec = RubyCA::Core::Models::Crl.find(id: params[:id])
           unless crl_rec
             halt 404
           end
@@ -138,7 +138,7 @@ module RubyCA
         end
 
         get '/ca-:id.pem' do
-          crl_rec = RubyCA::Core::Models::CRL.get(params[:id])
+          crl_rec = RubyCA::Core::Models::Crl.find(id: params[:id])
           unless crl_rec
             halt 404
           end
@@ -176,9 +176,9 @@ module RubyCA
           @my_ip = request.env['HTTP_X_REAL_IP'] || request.env['HTTP_X_FORWARDED_FOR'] || request.ip
           
           @vpn_defaults = {}
-          config_vpn_defaults = RubyCA::Core::Models::Config.get("vpn_defaults_server_address")
+          config_vpn_defaults = RubyCA::Core::Models::Config.find(name: "vpn_defaults_server_address")
           @vpn_defaults['server_address'] = config_vpn_defaults.value unless config_vpn_defaults.nil?
-          config_vpn_defaults = RubyCA::Core::Models::Config.get("vpn_defaults_iface_name")
+          config_vpn_defaults = RubyCA::Core::Models::Config.find(name: "vpn_defaults_iface_name")
           @vpn_defaults['iface_name'] = config_vpn_defaults.value unless config_vpn_defaults.nil?
           
           haml :config
@@ -267,7 +267,7 @@ module RubyCA
             msg = ''
             unless params[:vpn_defaults].nil?
               unless params[:vpn_defaults][:server_address].nil?
-                config_vpn_defaults = RubyCA::Core::Models::Config.get("vpn_defaults_server_address")
+                config_vpn_defaults = RubyCA::Core::Models::Config.find(name: "vpn_defaults_server_address")
                 if config_vpn_defaults.nil?
                   config_vpn_defaults = RubyCA::Core::Models::Config.create(name: "vpn_defaults_server_address", value: '')
                 end
@@ -277,7 +277,7 @@ module RubyCA
               end
 
               unless params[:vpn_defaults][:iface_name].nil?
-                config_vpn_defaults = RubyCA::Core::Models::Config.get("vpn_defaults_iface_name")
+                config_vpn_defaults = RubyCA::Core::Models::Config.find(name: "vpn_defaults_iface_name")
                 if config_vpn_defaults.nil?
                   config_vpn_defaults = RubyCA::Core::Models::Config.create(name: "vpn_defaults_iface_name", value: '')
                 end
@@ -297,12 +297,12 @@ module RubyCA
         # CRL
         #
         get '/admin/crl' do
-          crl_recs = RubyCA::Core::Models::CRL.all
+          crl_recs = RubyCA::Core::Models::Crl.all
           @crl_infos = []
           crl_recs.each do |crl_rec|
             @crl_infos <<  get_crl_info(crl_rec.id)
           end
-          @crl_dist = $config['ca']['crl']['dist']['uri']
+          @crl_dist = $config['ca']['crl']['dist']['uri_prefix']
           haml :crl
         end
         
@@ -311,32 +311,32 @@ module RubyCA
             
             #Add
             if params[:ca][:crl][:dist][:add_uri] == '1'
-              $config['ca']['crl']['dist']['uri'] ||={}
-              if (params[:ca][:crl][:dist][:uri]==="")
+              $config['ca']['crl']['dist']['uri_prefix'] ||={}
+              if (params[:ca][:crl][:dist][:uri_prefix]==="")
                 flash.next[:danger] = "URI is empty."
               else
-                unless $config['ca']['crl']['dist']['uri'].include? params[:ca][:crl][:dist][:uri]
-                  $config['ca']['crl']['dist']['uri'].push(params[:ca][:crl][:dist][:uri])
+                unless $config['ca']['crl']['dist']['uri_prefix'].include? params[:ca][:crl][:dist][:uri_prefix]
+                  $config['ca']['crl']['dist']['uri_prefix'].push(params[:ca][:crl][:dist][:uri_prefix])
                   File.open(CFG_FILE, 'w') {|f| YAML.dump($config, f) } #Store
                   $config = YAML.load(File.read(CFG_FILE)) # Reload
-                  flash.next[:success] = "<strong>#{params[:ca][:crl][:dist][:uri]}</strong> added to crl distribution points list."
+                  flash.next[:success] = "<strong>#{params[:ca][:crl][:dist][:uri_prefix]}</strong> added to crl distribution points list."
                 else
-                  flash.next[:warning] = "<strong>#{params[:ca][:crl][:dist][:uri]}</strong> is already in crl distribution points list."
+                  flash.next[:warning] = "<strong>#{params[:ca][:crl][:dist][:uri_prefix]}</strong> is already in crl distribution points list."
                 end
               end
             end
           
             #Remove
             if params[:ca][:crl][:dist][:rm_uri] == '1'
-              unless (params[:ca][:crl][:dist][:uri].nil? || params[:ca][:crl][:dist][:uri]==="" )
-                $config['ca']['crl']['dist']['uri'] ||={}
-                params[:ca][:crl][:dist][:uri].each do |uri|
-                  $config['ca']['crl']['dist']['uri'].delete("#{uri}")
+              unless (params[:ca][:crl][:dist][:uri_prefix].nil? || params[:ca][:crl][:dist][:uri_prefix]==="" )
+                $config['ca']['crl']['dist']['uri_prefix'] ||={}
+                params[:ca][:crl][:dist][:uri_prefix].each do |uri_prefix|
+                  $config['ca']['crl']['dist']['uri_prefix'].delete("#{uri_prefix}")
                 end
             
                 File.open(CFG_FILE, 'w') {|f| YAML.dump($config, f) } #Store
                 $config = YAML.load(File.read(CFG_FILE)) # Reload
-                flash.next[:success] = "<strong>#{params[:ca][:crl][:dist][:uri]}</strong> deleted from crl distribution points list."
+                flash.next[:success] = "<strong>#{params[:ca][:crl][:dist][:uri_prefix]}</strong> deleted from crl distribution points list."
               else
                 flash.next[:warning] = "Select the crl distribution point do you want delete."
               end
@@ -350,7 +350,7 @@ module RubyCA
         end
                 
         get '/admin/crl/:id/info' do
-          crl_rec = RubyCA::Core::Models::CRL.get(params[:id])
+          crl_rec = RubyCA::Core::Models::Crl.find(id: params[:id])
           crl = OpenSSL::X509::CRL.new crl_rec.crl
           content_type :txt
           crl.to_text 
@@ -367,7 +367,7 @@ module RubyCA
           end
         end
         
-        post '/admin/crl/renew' do                        
+        post '/admin/crl/renew' do
           intermediate = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['intermediate']['cn'])
           begin
             intermediate_key = OpenSSL::PKey::RSA.new intermediate.pkey, params[:passphrase][:intermediate]
@@ -383,15 +383,14 @@ module RubyCA
             redirect '/admin/crl'
           end
           intermediate_crt = OpenSSL::X509::Certificate.new intermediate.crt 
-          crl_rec = RubyCA::Core::Models::CRL.last
-          crl = OpenSSL::X509::CRL.new crl_rec.crl
+          crl = OpenSSL::X509::CRL.new intermediate.crl
           
           crl.last_update = Time.now
           crl.next_update = Time.now + 30 * 24 * 60 * 60
           crl.sign intermediate_key, OpenSSL::Digest::SHA512.new
           intermediate_key = nil
-          crl_rec.crl = crl.to_pem
-          crl_rec.save
+          intermediate.crl.crl = crl.to_pem
+          intermediate.crl.save
           flash.next[:success] = "CRL successfully renewed"
           redirect '/admin/crl'
         end
@@ -418,20 +417,19 @@ module RubyCA
             else
 
               intermediate_crt = OpenSSL::X509::Certificate.new intermediate.crt
-              crl_rec = RubyCA::Core::Models::CRL.last
-              crl = OpenSSL::X509::CRL.new crl_rec.crl
+              
+              crl = OpenSSL::X509::CRL.new intermediate.crl
         
               crl.last_update = Time.now
               crl.next_update = Time.now + 30 * 24 * 60 * 60
               crl.sign intermediate_key, OpenSSL::Digest::SHA512.new
               intermediate_key = nil
-              crl_rec.crl = crl.to_pem
-              crl_rec.save
+              intermediate.crl.crl = crl.to_pem
+              intermediate.crl.save
         
               content_buffer += "CRL successfully renewed.\n\n"
-        
-              crl_rec = RubyCA::Core::Models::CRL.last
-              crl = OpenSSL::X509::CRL.new crl_rec.crl
+
+              crl = OpenSSL::X509::CRL.new intermediate.crl
               content_buffer += crl.to_text
             end
           end
@@ -443,14 +441,14 @@ module RubyCA
         # Certificate Signing Requests
         #
         get '/admin/csrs/:cn/info' do
-          csr_rec = RubyCA::Core::Models::CSR.get(params[:cn])
+          csr_rec = RubyCA::Core::Models::Csr.find(cn: params[:cn])
           csr = OpenSSL::X509::Request.new csr_rec.csr
           content_type :txt
           csr.to_text 
         end
       
         get '/admin/csrs/?' do
-          @csrs = RubyCA::Core::Models::CSR.all
+          @csrs = RubyCA::Core::Models::Csr.all
           @cschemas = RubyCA::Core::Models::CertificateSchema.all
           @csr = session[:csr]
           haml :csrs
@@ -472,7 +470,7 @@ module RubyCA
             redirect '/admin/csrs'
           end
           
-          if RubyCA::Core::Models::CSR.get(params[:csr][:cn])
+          if RubyCA::Core::Models::Csr.find(cn: params[:csr][:cn])
             cn = params[:csr][:cn]
             session[:csr] = params[:csr]
             session[:csr][:cn] = nil
@@ -480,7 +478,7 @@ module RubyCA
             redirect '/admin/csrs'
           end
           
-          @csr = RubyCA::Core::Models::CSR.create(
+          @csr = RubyCA::Core::Models::Csr.create(
             cn: params[:csr][:cn],
             o: params[:csr][:o],
             l: params[:csr][:l],
@@ -491,7 +489,7 @@ module RubyCA
           key = OpenSSL::PKey::RSA.new 2048
           @csr.pkey = key.export(cipher, params[:csr][:passphrase])
           csr = OpenSSL::X509::Request.new
-          csr.version = 2
+          csr.version = 0
           csr.subject = OpenSSL::X509::Name.parse "/C=#{@csr.c}/ST=#{@csr.st}/L=#{@csr.l}/O=#{@csr.o}/CN=#{@csr.cn}"
           csr.public_key = key.public_key
           csr.sign key, OpenSSL::Digest::SHA512.new
@@ -507,7 +505,7 @@ module RubyCA
         end
         
         delete '/admin/csrs/:cn/?' do
-          @csr = RubyCA::Core::Models::CSR.get(params[:cn])
+          @csr = RubyCA::Core::Models::Csr.find(cn: params[:cn])
           @csr.destroy
           flash.next[:success] = "Deleted certificate signing request for '#{@csr.cn}'"
           redirect '/admin/csrs'
@@ -524,7 +522,7 @@ module RubyCA
             redirect '/admin/csrs'
           end
           
-          @csr = RubyCA::Core::Models::CSR.get(params[:cn])
+          @csr = RubyCA::Core::Models::Csr.find(cn: params[:cn])
           @sign = session[:sign]
           
           ku = keyusages.clone
@@ -554,7 +552,7 @@ module RubyCA
             flash.next[:danger] = "A certificate already exists for '#{params[:cn]}', revoke the old certificate before sign this request"
             redirect '/admin/csrs'
           end
-          @csr = RubyCA::Core::Models::CSR.get(params[:cn])
+          @csr = RubyCA::Core::Models::Csr.find(cn: params[:cn])
           @intermediate = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['intermediate']['cn'])
           begin
             intermediate_key = OpenSSL::PKey::RSA.new @intermediate.pkey, params[:passphrase][:intermediate]
@@ -568,7 +566,7 @@ module RubyCA
           csr = OpenSSL::X509::Request.new @csr.csr
           intermediate_crt = OpenSSL::X509::Certificate.new @intermediate.crt
           crt = OpenSSL::X509::Certificate.new
-          @serial = RubyCA::Core::Models::Config.get('last_serial')
+          @serial = RubyCA::Core::Models::Config.find(name: 'last_serial')
           crt.serial = @serial.value.to_i + 1
           @serial.value = crt.serial.to_s
           @serial.save
@@ -609,7 +607,7 @@ module RubyCA
         end
         
         get '/admin/cschema/:id?' do
-          @cschema = RubyCA::Core::Models::CertificateSchema.get(params[:id])
+          @cschema = RubyCA::Core::Models::CertificateSchema.find(id: params[:id])
           session[:csr] = @cschema if @cschema 
           redirect '/admin/csrs'
         end
@@ -638,7 +636,7 @@ module RubyCA
         end
         
         delete '/admin/cschemas/:id/?' do
-          cschema = RubyCA::Core::Models::CertificateSchema.get(params[:id])
+          cschema = RubyCA::Core::Models::CertificateSchema.find(id: params[:id])
           cschema.destroy
           flash.next[:success] = "Deleted certificate schema for '#{cschema.o}'"
           redirect '/admin/cschemas'
@@ -779,9 +777,9 @@ module RubyCA
             redirect '/admin/certificates'
           else
             @vpn_defaults = {}
-            config_vpn_defaults = RubyCA::Core::Models::Config.get("vpn_defaults_server_address")
+            config_vpn_defaults = RubyCA::Core::Models::Config.find(name: "vpn_defaults_server_address")
             @vpn_defaults['server_address'] = config_vpn_defaults.value unless config_vpn_defaults.nil?
-            config_vpn_defaults = RubyCA::Core::Models::Config.get("vpn_defaults_iface_name")
+            config_vpn_defaults = RubyCA::Core::Models::Config.find(name: "vpn_defaults_iface_name")
             @vpn_defaults['iface_name'] = config_vpn_defaults.value unless config_vpn_defaults.nil?
             haml :zip
           end
@@ -915,7 +913,7 @@ module RubyCA
             flash.next[:danger] = "Incorrect intermediate passphrase"
             redirect "/admin/certificates/#{params[:cn]}/revoke"
           end
-          @crl = RubyCA::Core::Models::CRL.get(@intermediate.id)
+          @crl = @intermediate.crl
           crl = OpenSSL::X509::CRL.new @crl.crl
           crl.add_revoked revoked
           crl.last_update = Time.now
@@ -932,7 +930,7 @@ module RubyCA
         end
         
         delete '/admin/revokeds/:id/?' do
-          @revokedcert = RubyCA::Core::Models::Revoked.get(params[:id])
+          @revokedcert = RubyCA::Core::Models::Revoked.find(id: params[:id])
           @revokedcert.destroy
           flash.next[:success] = "Removed revoked certificate for '#{@revokedcert.id}: #{@revokedcert.cn}'"
           redirect '/admin/certificates'

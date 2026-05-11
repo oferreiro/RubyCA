@@ -15,8 +15,8 @@
 %form#csr.form-horizontal{ action: '/admin/crl/renew', method: 'post' }
   %fieldset
     %legend Enter Passphrase
-    .form-group
+    .mb-3
       %label{ for: 'intermediate' } Intermediate CA Key
       %input.form-control#intermediate{ name: 'passphrase[intermediate]', type: 'password', placeholder: '' }
-    .form-group
+    .mb-3
       %button.btn.btn-primary{ type: 'submit' } Renew CRL        

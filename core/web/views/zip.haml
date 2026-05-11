@@ -12,18 +12,17 @@
 %form#pkcs12.form-horizontal{ action: "/admin/certificates/#{@crt.cn}.zip", method: 'post' }
   %fieldset
     %legend Enter Passphrase
-    .form-group
+    .mb-3
       %label{ for: 'certificate' } Certificate Key
       .input-group
         %input.form-control#certificate{ name: 'passphrase[certificate]', type: 'password', autocomplete: 'off', placeholder: '' }
-        .input-group-append
-          %span.input-group-text.show-pass{ title: 'Show password', 'data-toggle' => 'tooltip'}
-            %i.fas.fa-eye#show_eye
-    .form-group  
+        %span.input-group-text.show-pass{ title: 'Show password', 'data-toggle' => 'tooltip'}
+          %i.fas.fa-eye#show_eye
+    .mb-3
       %label{ for: 'serveraddr' } Server Address
       %input.form-control#serveraddr{ name: 'serveraddr', type: 'text', placeholder: 'e.g. vpn.acme.com', value: @vpn_defaults['server_address'] .nil? ? '' : @vpn_defaults['server_address'] }
-    .form-group  
+    .mb-3
       %label{ for: 'ifname' } VPN interface name
       %input.form-control#ifname{ name: 'ifname', type: 'text', placeholder: 'e.g. acme_vpn',value: @vpn_defaults['iface_name'].nil? ? '' : @vpn_defaults['iface_name'] }
-    .form-group
+    .mb-3
       %button.btn.btn-primary{ type: 'submit' } Get .zip file

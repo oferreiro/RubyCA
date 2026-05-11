@@ -17,45 +17,45 @@
     .row
       .col-xs-12.col-md-6
         %legend Subject Alternative Name (optional)
-        .form-group
-          %label{ for: 'DNS' } DNS
-          %input.form-control#cn{ name: 'subjectAltName[DNS]', type: 'text', placeholder: 'e.g. www.acme.com', value: @san.nil? ? '' : @san[:DNS] }
-        .form-group
-          %label{ for: 'IP' } IP
-          %input.form-control#cn{ name: 'subjectAltName[IP]', type: 'text', placeholder: 'e.g. 10.2.3.5', value: @san.nil? ? '' : @san[:IP] }
-        .form-group
-          %label{ for: 'URI' } URI
-          %input.form-control#cn{ name: 'subjectAltName[URI]', type: 'text', placeholder: 'e.g. http://www.acme.com', value: @san.nil? ? '' : @san[:URI] }
-        .form-group
+        .mb-3
+          %label{ for: 'dns' } DNS
+          %input.form-control#dns{ name: 'subjectAltName[DNS]', type: 'text', placeholder: 'e.g. www.acme.com', value: @san.nil? ? '' : @san[:DNS] }
+        .mb-3
+          %label{ for: 'ip' } IP
+          %input.form-control#ip{ name: 'subjectAltName[IP]', type: 'text', placeholder: 'e.g. 10.2.3.5', value: @san.nil? ? '' : @san[:IP] }
+        .mb-3
+          %label{ for: 'uri' } URI
+          %input.form-control#uri{ name: 'subjectAltName[URI]', type: 'text', placeholder: 'e.g. http://www.acme.com', value: @san.nil? ? '' : @san[:URI] }
+        .mb-3
           %label{ for: 'email' } email
-          %input.form-control#cn{ name: 'subjectAltName[email]', type: 'text', placeholder: 'e.g. email@acme.com',value: @san.nil? ? '' : @san[:email] }
-        .form-group
-          %label{ for: 'RID' } RID
-          %input.form-control#cn{ name: 'subjectAltName[RID]', type: 'text', placeholder: 'e.g. 1.2.3.4',value: @san.nil? ? '' : @san[:RID] }
+          %input.form-control#email{ name: 'subjectAltName[email]', type: 'text', placeholder: 'e.g. email@acme.com',value: @san.nil? ? '' : @san[:email] }
+        .mb-3
+          %label{ for: 'rid' } RID
+          %input.form-control#rid{ name: 'subjectAltName[RID]', type: 'text', placeholder: 'e.g. 1.2.3.4',value: @san.nil? ? '' : @san[:RID] }
     
       .col-xs-12.col-md-4
         .row
           %legend Key Usage (optional)
-          .form-group
+          .mb-3
             -locals[:keyusages].map do |usage,default|
               .form-check
                 %label.form-check-label{ for: "keyusages[#{usage}]" }
-                %input.form-check-input{:type=>'checkbox', :name=>"keyusages[#{usage}]", :value=>1, :checked=>default} #{usage} 
+                %input.form-check-input{:type=>'checkbox', id: "keyusages[#{usage}]", :name=>"keyusages[#{usage}]", :value=>1, :checked=>default} #{usage} 
         
         .row
           %legend Extended Key Usage (optional)
-          .form-group
+          .mb-3
             -locals[:extendedkeyusages].map do |ext,default|
               .form-check
-                %label.form-check-label{ for: 'extendedkeyusages[#{ext}]' }		
-                %input.form-check-input{:type=>'checkbox', :name=>"extendedkeyusages[#{ext}]", :value=>1, :checked=>default} #{ext}
+                %label.form-check-label{ for: "extendedkeyusages[#{ext}]" }		
+                %input.form-check-input{:type=>'checkbox', id: "extendedkeyusages[#{ext}]", :name=>"extendedkeyusages[#{ext}]", :value=>1, :checked=>default} #{ext}
 
           
   %legend Enter Passphrases to Sign CSR
-  .form-group
+  .mb-3
     %label{ for: 'intermediate' } Intermediate CA Key
     %input.form-control#intermediate{ name: 'passphrase[intermediate]', type: 'password', placeholder: '' }
-  .form-group
+  .mb-3
     %button.btn.btn-primary{ type: 'submit' } Sign Certificate
     -if !@sign.nil?
       %a.btn.btn-secondary{ href: '/admin/csrs/sign/cancel' } Cancel

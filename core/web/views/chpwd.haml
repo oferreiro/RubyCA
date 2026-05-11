@@ -12,27 +12,25 @@
 %form#csr.form-horizontal{ action: "/admin/certificates/#{@crt.cn}/chpwd", method: 'post' }
   %fieldset
     %legend Enter key Passphrase
-    .form-group
+    .mb-3
       %label{ for: 'current_password' } Current password
       %input.form-control#current_password{ name: 'passphrase[current]', type: 'password', placeholder: '' }
-    .form-group
+    .mb-3
       %label{ for: 'passphrase' } New password
       .input-group
         %input.form-control#passphrase{ name: 'passphrase[new]', type: 'password', autocomplete: 'off', placeholder: '' }
-        .input-group-append
-          %span.input-group-text.show-pass{ title: 'Show password', 'data-toggle' => 'tooltip'}
-            %i.fas.fa-eye#show_eye
-          %a.btn.btn-dark#genpw{ title: 'Generate random password', 'data-toggle' => 'tooltip' }
-            %i.fas.fa-cogs
-            %span.d-none.d-md-inline Generate
+        %span.input-group-text.show-pass{ title: 'Show password', 'data-toggle' => 'tooltip'}
+          %i.fas.fa-eye#show_eye
+        %a.btn.btn-dark#genpw{ title: 'Generate random password', 'data-toggle' => 'tooltip' }
+          %i.fas.fa-cogs
+          %span.d-none.d-md-inline Generate
 
-    .form-group
+    .mb-3
       %label{ for: 'passphrase-confirm' } Confirm password
       .input-group
         %input.form-control#passphrase-confirm{ name: 'passphrase[confirm]', type: 'password', autocomplete: 'off', placeholder: '' }
-        .input-group-append
-          %span.input-group-text.show-pass{ title: 'Show password', 'data-toggle' => 'tooltip' }
-            %i.fas.fa-eye
+        %span.input-group-text.show-pass{ title: 'Show password', 'data-toggle' => 'tooltip' }
+          %i.fas.fa-eye
       
-    .form-group
+    .mb-3
       %button.btn.btn-primary{ type: 'submit' } Change Password

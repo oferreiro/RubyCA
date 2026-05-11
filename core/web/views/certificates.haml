@@ -9,13 +9,13 @@
       %tr
         %td
           = crt.cn
-        %td.float-right
-          .btn-group
-            %a.btn.btn-sm.btn-info{ :href => "/admin/certificates/#{crt.cn}/info", 'data-get' => 'modal', 'data-title' => 'Certificate Info' }
+        %td
+          .btn-group.float-end
+            %a.btn.btn-sm.btn-info{ :href => "/admin/certificates/#{crt.cn}/info", 'data-bs-get' => 'modal', 'data-bs-title' => 'Certificate Info' }
               %i.fas.fa-info-circle
               %span.d-none.d-md-inline Info
             .btn-group
-              %a.btn.btn-sm.btn-primary.dropdown-toggle.bt-download{ :href => "#", 'data-toggle' => 'dropdown'} 
+              %a.btn.btn-sm.btn-primary.dropdown-toggle.bt-download{ :href => "#", 'data-bs-toggle' => 'dropdown'} 
                 %i.fas.fa-download
                 %span.d-none.d-md-inline Download
                 %span.caret
@@ -53,8 +53,8 @@
         %tr
           %td 
             = crt.cn
-          %td.float-right
-            .btn-group
+          %td
+            .btn-group.float-end
               %form{ :action => "/admin/revokeds/#{crt.id}", :method => 'POST', :onsubmit => "return confirm('Are you sure you want to delete this revoked certificate?')"}
                 %input{ type: 'hidden', name: '_method', value: 'DELETE' } 
                 %button.btn.btn-danger.btn-sm{ :type => 'submit' }
