@@ -33,9 +33,23 @@ Create the ./config/rubyca.yml file and edit to suit your requirements
     $ cp ./config/rubyca.yml.sample ./config/rubyca.yml
     $ nano ./config/rubyca.yml
 
+Migrate the database
+    $ bundle exec rake db:migrate
+
+If you are migrating from 2.x.x version use:
+    $ bundle exec rake db:migrate_dm_to_sequel
+    $ bundle exec rake db:migrate_dm_crls_to_sequel
+
+    $ bundle exec rake --tasks
+
 RubyCA must be started as root on the first run to be able generate the ca certificates
 
     $ sudo ./RubyCA
+    or run
+    sudo bundle exec rake ca:setup
+
+The main proporsal to running setup as root is save root private key with root privileges.
+It will be save on private directory.
   
 Visit http://<host>:<port>/admin to manage certificates
 
@@ -51,25 +65,6 @@ RubyCA must be started with:
 
     $ bundle exec puma -C ./config/puma.rb    
 
-### Using Thin:
-
-Create the thin.yml file and edit to suit your requirements.
-
-    $ cp ./distrib/thin/thin.yml.sample ./config/thin.yml
-    $ nano ./config/thin.yml
-
-Edit Gemfile to use thin server:
-
-    gem 'thin', '~> 1.7', '>= 1.7.2'
-    #gem 'puma', '~> 3.11'
-
-Run bundle:
-
-    $ bundle
-  
-RubyCA must be started with:
-
-    $ bundle exec thin start -C ./config/thin.yml
 
 Note:
 The first run still needs RubyCA run as root to be able generate the ca certificates.

@@ -12,6 +12,13 @@ require 'core/ca/setup'
 require 'core/web/server'
 require 'core/web/flash'
 
+if __FILE__ == $0 then
+  # If not first_run_complete exists, then it is the first run. Perform setup.
+  unless RubyCA::Core::Models::Config.find(name: 'first_run_complete')
+    first_run_setup
+  end
+end
+
 # Start server
 if $config['web']['port'] < 1024
   unless Process.euid == 0 

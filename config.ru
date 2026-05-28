@@ -7,7 +7,6 @@ require 'core/bootstrap'
 require 'core/web/server'
 require 'core/web/flash'
 
-
 configure :development do
 	puts "development mode"
 end

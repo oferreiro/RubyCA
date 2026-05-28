@@ -77,7 +77,7 @@ module RubyCA
           
           def get_crl_info(id)
             crl_rec = RubyCA::Core::Models::Crl.find(id: id)
-            crl = OpenSSL::X509::CRL.new crl_rec.crl
+            crl = OpenSSL::X509::CRL.new crl_rec.data
             issuer = {}
             crl.issuer().to_s.split("/").each do |x|
               if x!=""
@@ -115,14 +115,15 @@ module RubyCA
           redirect '/admin'
         end
         
+        # to kepp compatibility with old versions certificates
         get '/ca.crl' do
-          @crl = OpenSSL::X509::CRL.new RubyCA::Core::Models::Crl.last.crl
+          @crl = OpenSSL::X509::CRL.new RubyCA::Core::Models::Certificate.find(cn: $config['ca']['intermediate']['cn']).crl.data
           content_type :crl
           @crl.to_der
         end
         
         get '/crl.pem' do
-          @crl = OpenSSL::X509::CRL.new RubyCA::Core::Models::Crl.last.crl
+          @crl = OpenSSL::X509::CRL.new RubyCA::Core::Models::Crl.last.data
           content_type :crl
           @crl.to_pem
         end
@@ -132,7 +133,7 @@ module RubyCA
           unless crl_rec
             halt 404
           end
-          @crl = OpenSSL::X509::CRL.new crl_rec.crl
+          @crl = OpenSSL::X509::CRL.new crl_rec.data
           content_type :crl
           @crl.to_der
         end
@@ -142,7 +143,7 @@ module RubyCA
           unless crl_rec
             halt 404
           end
-          @crl = OpenSSL::X509::CRL.new crl_rec.crl
+          @crl = OpenSSL::X509::CRL.new crl_rec.data
           content_type :crl
           @crl.to_pem
         end
@@ -351,7 +352,7 @@ module RubyCA
                 
         get '/admin/crl/:id/info' do
           crl_rec = RubyCA::Core::Models::Crl.find(id: params[:id])
-          crl = OpenSSL::X509::CRL.new crl_rec.crl
+          crl = OpenSSL::X509::CRL.new crl_rec.data
           content_type :txt
           crl.to_text 
         end
@@ -383,13 +384,13 @@ module RubyCA
             redirect '/admin/crl'
           end
           intermediate_crt = OpenSSL::X509::Certificate.new intermediate.crt 
-          crl = OpenSSL::X509::CRL.new intermediate.crl
+          crl = OpenSSL::X509::CRL.new intermediate.crl.data
           
           crl.last_update = Time.now
           crl.next_update = Time.now + 30 * 24 * 60 * 60
           crl.sign intermediate_key, OpenSSL::Digest::SHA512.new
           intermediate_key = nil
-          intermediate.crl.crl = crl.to_pem
+          intermediate.crl.data = crl.to_pem
           intermediate.crl.save
           flash.next[:success] = "CRL successfully renewed"
           redirect '/admin/crl'
@@ -418,18 +419,18 @@ module RubyCA
 
               intermediate_crt = OpenSSL::X509::Certificate.new intermediate.crt
               
-              crl = OpenSSL::X509::CRL.new intermediate.crl
+              crl = OpenSSL::X509::CRL.new intermediate.crl.data
         
               crl.last_update = Time.now
               crl.next_update = Time.now + 30 * 24 * 60 * 60
               crl.sign intermediate_key, OpenSSL::Digest::SHA512.new
               intermediate_key = nil
-              intermediate.crl.crl = crl.to_pem
+              intermediate.crl.data = crl.to_pem
               intermediate.crl.save
         
               content_buffer += "CRL successfully renewed.\n\n"
 
-              crl = OpenSSL::X509::CRL.new intermediate.crl
+              crl = OpenSSL::X509::CRL.new intermediate.crl.data
               content_buffer += crl.to_text
             end
           end
@@ -671,7 +672,8 @@ module RubyCA
         end
         
         get '/admin/certificates/chain/:cn.crt' do
-          output = RubyCA::Core::Models::Certificate.get_by_cn(params[:cn]).crt
+          output = ''
+          output << RubyCA::Core::Models::Certificate.get_by_cn(params[:cn]).crt
           unless params[:cn] === $config['ca']['root']['cn'] or params[:cn] === $config['ca']['intermediate']['cn']
             output << RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['intermediate']['cn']).crt
           end
@@ -914,13 +916,13 @@ module RubyCA
             redirect "/admin/certificates/#{params[:cn]}/revoke"
           end
           @crl = @intermediate.crl
-          crl = OpenSSL::X509::CRL.new @crl.crl
+          crl = OpenSSL::X509::CRL.new @crl.data
           crl.add_revoked revoked
           crl.last_update = Time.now
           crl.next_update = Time.now + 60 * 60 * 24 * 30
           crl.sign intermediate_key, OpenSSL::Digest::SHA512.new
           intermediate_key = nil
-          @crl.crl = crl.to_pem
+          @crl.data = crl.to_pem
           @crl.save
           @revokedcert = RubyCA::Core::Models::Revoked.create( cn: @crt.cn, pkey: @crt.pkey, crt: @crt.crt )
           @revokedcert.save

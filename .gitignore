@@ -5,7 +5,7 @@ tmp/*
 log/*
 *.db
 db/*.db
-*-bak.*
+.env
 core/web/public/tmp
 private
 config/rubyca.yml
@@ -15,6 +15,11 @@ config/rubyca-puma.service
 .rbenv-gemsets
 .ruby-version
 Gemfile.lock
+
+*-bak.*
+*.bak
+bak
+backup
 
 .DS_Store
 ._*

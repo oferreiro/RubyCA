@@ -4,27 +4,14 @@ end
 
 require "etc"
   
-=begin
-def get_crl_dist_uri_old
-  # CRL distribuition URI. 
-  # if URI is blank or null use auto generation URI based on config.
-  if $config['ca']['crl']['dist'].nil? || $config['ca']['crl']['dist']['uri'].nil? || $config['ca']['crl']['dist']['uri'] ===''
-    #crldist = "URI:http://#{$config['web']['domain']}#{(':' + $config['web']['port'].to_s) unless $config['web']['port'] == 80}/ca.crl"  
-  else
-    crldist = $config['ca']['crl']['dist']['uri'].map{|uri| "URI:#{uri}"}.join(',')
-  end
-  return crldist
-end
-=end
-
-def gen_self_signed_root(cipher)
+def gen_self_signed_root(cipher = OpenSSL::Cipher::AES256.new(:CFB))
   # Generate self signed root
   
   # Create root key
   root_key = OpenSSL::PKey::RSA.new 2048
   puts ''
   puts 'Enter a pass phrase for the root CA key. This is not stored by RubyCA.'
-  open $root_dir + "/private/root_ca.pem", 'w', 0400 do |io|
+  open  "#{$root_dir}/private/root_ca.pem", 'w', 0400 do |io|
     io.write root_key.export(cipher)
   end
   # Create root certificate
@@ -32,39 +19,42 @@ def gen_self_signed_root(cipher)
   root_crt = OpenSSL::X509::Certificate.new
   root_crt.serial = 0x10000000000000000000000000000000 + rand(0x01000000000000000000000000000000)
   RubyCA::Core::Models::Config.create( name: 'last_serial', value: root_crt.serial.to_s )
+
   root_crt.version = 2
   root_crt.not_before = Time.utc(Time.now.year, Time.now.month, Time.now.day, 00, 00, 0)
   root_crt.not_after = root_crt.not_before  + ($config['ca']['root']['years'] * 365 * 24 * 60 * 60 - 1) + (($config['ca']['root']['years'] / 4).to_int * 24 * 60 * 60)
   root_crt.public_key = root_key.public_key
   root_crt.subject = root_name
   root_crt.issuer = root_name
+  
   root_ef = OpenSSL::X509::ExtensionFactory.new
   root_ef.subject_certificate = root_crt
   root_ef.issuer_certificate = root_crt
   root_crt.add_extension root_ef.create_extension 'subjectKeyIdentifier', 'hash'
   root_crt.add_extension root_ef.create_extension 'basicConstraints', 'CA:TRUE', true
   root_crt.add_extension root_ef.create_extension 'keyUsage', 'cRLSign,keyCertSign', true
-  
   root_crt.sign root_key, OpenSSL::Digest::SHA512.new
-  @root_crt = RubyCA::Core::Models::Certificate.create( cn: "#{$config['ca']['root']['cn']}" )
-  @root_crt.crt = root_crt.to_pem
-  @root_crt.save
-  create_crl(root_key, root_crt, @root_crt.id, 3650)
+
+  # Save root certificate and create CRL
+  root_rec = RubyCA::Core::Models::Certificate.create( cn: "#{$config['ca']['root']['cn']}" )
+  root_rec.crt = root_crt.to_pem
+  root_rec.save
+  create_crl( root_rec.id, root_key, root_crt, 3650)
   
   return root_key,root_crt
 end
 
-def gen_intermediate(root_key, root_crt, cipher)
+def gen_intermediate(root_key, root_crt, cipher=OpenSSL::Cipher::AES256.new(:CFB))
   # Generate intermediate certificate and key
   intermediate_key = OpenSSL::PKey::RSA.new 2048
   puts ''
   puts 'Enter a pass phrase for the intermediate CA key.'
-  @intermediate_crt = RubyCA::Core::Models::Certificate.create( cn: "#{$config['ca']['intermediate']['cn']}")
-  @intermediate_crt.pkey = intermediate_key.export(cipher)
+  intermediate_rec = RubyCA::Core::Models::Certificate.create( cn: "#{$config['ca']['intermediate']['cn']}")
+  intermediate_rec.pkey = intermediate_key.export(cipher)
   
   # Generate intermediate csr
   intermediate_csr = OpenSSL::X509::Request.new
-  intermediate_csr.version = 2
+  intermediate_csr.version = 0
   intermediate_csr.subject = OpenSSL::X509::Name.parse "/C=#{$config['ca']['intermediate']['country']}/ST=#{$config['ca']['intermediate']['state']}/L=#{$config['ca']['intermediate']['locality']}/O=#{$config['ca']['intermediate']['organisation']}/CN=#{$config['ca']['intermediate']['cn']}"
   intermediate_csr.public_key = intermediate_key.public_key
   intermediate_csr.sign intermediate_key, OpenSSL::Digest::SHA512.new
@@ -91,13 +81,15 @@ def gen_intermediate(root_key, root_crt, cipher)
   intermediate_crt.add_extension intermediate_ef.create_extension 'crlDistributionPoints', "#{get_crl_dist_uri(root_crl_id)}" unless get_crl_dist_uri(root_crl_id).nil?
 
   intermediate_crt.sign root_key, OpenSSL::Digest::SHA512.new
-  @intermediate_crt.crt = intermediate_crt.to_pem
-  @intermediate_crt.save
-  create_crl(@intermediate_crt.id, intermediate_key, intermediate_crt, 30)
+  intermediate_rec.crt = intermediate_crt.to_pem
+  intermediate_rec.save
+  create_crl(intermediate_rec.id, intermediate_key, intermediate_crt, 30)
   return intermediate_key, intermediate_crt
 end
 
 def create_crl(cert_id, key, cert, valid_days)
+  crt_rec = RubyCA::Core::Models::Certificate.find(id: cert_id)
+
   # Create CRL
   crl = OpenSSL::X509::CRL.new
   crl.version = 1
@@ -105,36 +97,128 @@ def create_crl(cert_id, key, cert, valid_days)
   crl.last_update = Time.now
   crl.next_update = Time.now + valid_days * 24 * 60 * 60
   crl.sign key, OpenSSL::Digest::SHA512.new
-  @crl = RubyCA::Core::Models::Crl.create(id: cert_id, crl: crl.to_pem)
+  
+  crt_rec.crl = RubyCA::Core::Models::Crl.new(data: crl.to_pem)
 end
 
 def renew_crl(crl_id, key, cert, valid_days)
-  crl_rec = RubyCA::Core::Models::Crl.where(id: crl_id).first
-  crl = OpenSSL::X509::CRL.new crl_rec.crl
+  crl_rec = RubyCA::Core::Models::Crl.find(id: crl_id)
+  crl = OpenSSL::X509::CRL.new crl_rec.data
   
   crl.last_update = Time.now
   crl.next_update = Time.now + valid_days * 24 * 60 * 60
   crl.sign key, OpenSSL::Digest::SHA512.new
 
-  crl_rec.crl = crl.to_pem
+  crl_rec.data = crl.to_pem
   crl_rec.save
 end
 
 def renew_root_crl(key_pass)
-  
   enc_key = File.read($root_dir + "/private/root_ca.pem")
   root_key = OpenSSL::PKey::RSA.new enc_key, key_pass
   root_rec = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['root']['cn'])
   root_cert  = OpenSSL::X509::Certificate.new root_rec.crt
   renew_crl(root_rec.id, root_key, root_cert, 3650)
-  
 end
 
-# Check if the root certificate exists, if not, continue with generation
-unless RubyCA::Core::Models::Config.where(name: 'first_run_complete').first
+def renew_root_certificate(key_pass)
+  enc_key = File.read($root_dir + "/private/root_ca.pem")
+  root_key = OpenSSL::PKey::RSA.new enc_key, key_pass
+  root_rec = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['root']['cn'])
+  root_old_cert  = OpenSSL::X509::Certificate.new root_rec.crt
+
+  # Create csr
+  root_csr = OpenSSL::X509::Request.new
+  root_csr.version = 0
+  #root_name = OpenSSL::X509::Name.parse "/C=#{$config['ca']['root']['country']}/ST=#{$config['ca']['root']['state']}/L=#{$config['ca']['root']['locality']}/O=#{$config['ca']['root']['organisation']}/CN=#{$config['ca']['root']['cn']}"
+  #root_csr.subject = root_name
+  root_csr.subject = root_old_cert.subject
+  root_csr.public_key = root_key.public_key
+  root_csr.sign root_key, OpenSSL::Digest::SHA512.new
+
+  # Sign root csr with root certficate
+  root_crt = OpenSSL::X509::Certificate.new
+
+  serial = RubyCA::Core::Models::Config.find(name: 'last_serial')
+  root_crt.serial = serial.value.to_i + 1
+  serial.value = root_crt.serial.to_s
+  serial.save
+
+  root_crt.version = 2
+  root_crt.not_before = Time.utc(Time.now.year, Time.now.month, Time.now.day, 00, 00, 0)
+  root_crt.not_after = root_crt.not_before  + ($config['ca']['root']['years'] * 365 * 24 * 60 * 60 - 1) + (($config['ca']['root']['years'] / 4).to_int * 24 * 60 * 60)
+  root_crt.subject = root_csr.subject
+  root_crt.public_key = root_csr.public_key
+  root_crt.issuer = root_crt.subject
+  
+  root_ef = OpenSSL::X509::ExtensionFactory.new
+  root_ef.subject_certificate = root_crt
+  root_ef.issuer_certificate = root_crt
+  
+  root_crt.add_extension root_ef.create_extension 'subjectKeyIdentifier', 'hash'
+  root_crt.add_extension root_ef.create_extension 'basicConstraints', 'CA:TRUE', true
+  root_crt.add_extension root_ef.create_extension 'keyUsage', 'cRLSign,keyCertSign', true
+
+  root_crt.sign root_key, OpenSSL::Digest::SHA512.new
+  root_rec.crt = root_crt.to_pem  
+  root_rec.save
+  renew_crl(root_rec.crl.id, root_key, root_crt, 3650)
+end
+
+def renew_intermediate_certificate(root_key_pass, intermediate_key_pass)
+  enc_key = File.read($root_dir + "/private/root_ca.pem")
+  root_key = OpenSSL::PKey::RSA.new enc_key, root_key_pass
+  root_rec = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['root']['cn'])
+  root_crt  = OpenSSL::X509::Certificate.new root_rec.crt
+  
+  intermediate_rec = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['intermediate']['cn'])
+  intermediate_key = OpenSSL::PKey::RSA.new intermediate_rec.pkey, intermediate_key_pass
+  intermediate_old_cert  = OpenSSL::X509::Certificate.new intermediate_rec.crt
+
+  # Generate intermediate csr
+  intermediate_csr = OpenSSL::X509::Request.new
+  intermediate_csr.version = 0
+  #intermediate_csr.subject = OpenSSL::X509::Name.parse "/C=#{$config['ca']['intermediate']['country']}/ST=#{$config['ca']['intermediate']['state']}/L=#{$config['ca']['intermediate']['locality']}/O=#{$config['ca']['intermediate']['organisation']}/CN=#{$config['ca']['intermediate']['cn']}"
+  intermediate_csr.subject = intermediate_old_cert.subject
+  intermediate_csr.public_key = intermediate_key.public_key
+  intermediate_csr.sign intermediate_key, OpenSSL::Digest::SHA512.new
+  
+  # Sign intermediate csr with root certficate
+  intermediate_crt = OpenSSL::X509::Certificate.new
+
+  serial = RubyCA::Core::Models::Config.find(name: 'last_serial')
+  intermediate_crt.serial = serial.value.to_i + 1
+  serial.value = intermediate_crt.serial.to_s
+  serial.save
+
+  intermediate_crt.version = 2
+  intermediate_crt.not_before = Time.utc(Time.now.year, Time.now.month, Time.now.day, 00, 00, 0)
+  intermediate_crt.not_after = intermediate_crt.not_before  + ($config['ca']['intermediate']['years'] * 365 * 24 * 60 * 60 - 1) + (($config['ca']['intermediate']['years'] / 4).to_int * 24 * 60 * 60)
+  intermediate_crt.subject = intermediate_csr.subject
+  intermediate_crt.public_key = intermediate_csr.public_key
+  intermediate_crt.issuer = root_crt.subject
+  
+  intermediate_ef = OpenSSL::X509::ExtensionFactory.new
+  intermediate_ef.subject_certificate = intermediate_crt
+  intermediate_ef.issuer_certificate = root_crt
+  
+  intermediate_crt.add_extension intermediate_ef.create_extension 'subjectKeyIdentifier', 'hash'
+  intermediate_crt.add_extension intermediate_ef.create_extension 'basicConstraints', 'CA:TRUE', true
+  intermediate_crt.add_extension intermediate_ef.create_extension 'keyUsage', 'cRLSign,keyCertSign', true
+  
+  root_crl_id = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['root']['cn']).crl.id
+  intermediate_crt.add_extension intermediate_ef.create_extension 'crlDistributionPoints', "#{get_crl_dist_uri(root_crl_id)}" unless get_crl_dist_uri(root_crl_id).nil?
+
+  intermediate_crt.sign root_key, OpenSSL::Digest::SHA512.new
+  intermediate_rec.crt = intermediate_crt.to_pem
+  intermediate_rec.save
+  renew_crl(intermediate_rec.crl.id, intermediate_key, intermediate_crt, 30)
+end
+
+def first_run_setup(unsafe=false)
   unsafe_mode = false
   ARGV.each do |p|
-    if p === "-u" || p === "--unsafe"
+    if p === "-u" || p === "--unsafe" || unsafe
       unsafe_mode = true
       puts ''
       puts '******************************************************************'
@@ -148,14 +232,21 @@ unless RubyCA::Core::Models::Config.where(name: 'first_run_complete').first
   
   unless Process.euid == 0 || unsafe_mode
     puts ''
-    puts '*************************************************************************************'    
+    puts '*************************************************************************************'
     puts '* Error:                                                                            *'
-    puts '* First RubyCA run requires root privilege to generate admin CA certificates.       *' 
-    puts '* After this, the root privilege is not necessary if server port greater than 1024. *' 
-    puts '* Please run RubyCA with sudo.                                                      *'
+    puts '* First RubyCA run requires root privilege to generate admin CA certificates.       *'
+    puts '* Root privilege is not necessary after first run.                                  *'
+    puts '* Except if the server port is less than 1024.                                      *'
+    puts '*                                                                                   *'
+    puts '* Please run RubyCA with sudo:                                                      *'
     puts '* sudo ./RubyCA                                                                     *'
-    puts '* If you unable to run sudo, use --unsafe param with caution.                       *'
+    puts '* or                                                                                *'
+    puts '* sudo bundle exec rake ca:setup                                                    *'
+    puts '*                                                                                   *'
+    puts '* If you unable to run sudo, use unsafe param with caution:                         *'
     puts '* ./RubyCA --unsafe                                                                 *'
+    puts '* or                                                                                *'
+    puts '* sudo bundle exec rake "ca:setup[unsafe]"                                          *'
     puts '*************************************************************************************'
     puts ''
     

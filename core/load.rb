@@ -1,7 +1,6 @@
 if __FILE__ == $0 then abort 'This file forms part of RubyCA and is not designed to be called directly. Please run ./RubyCA instead.' end
 
-RUBYCA_VERSION=IO.binread($root_dir + '/version')
-
+RUBYCA_VERSION=IO.binread("#{$root_dir}/version")
 
 # Print welcome message
 puts ''
@@ -15,13 +14,14 @@ Bundler.require(:default)
 
 # Requires
 require 'singleton'
+require 'dotenv/load'
 require 'sinatra/reloader'
 require 'zip'
 require 'base64'
 require 'yaml'
 
 # Test config file exists
-CFG_FILE = $root_dir + '/config/rubyca.yml'
+CFG_FILE = "#{$root_dir}/config/rubyca.yml"
 unless File.exist?(CFG_FILE) or File.file?(CFG_FILE)
   puts ''
   puts 'Error: RubyCA requires config/rubyca.yml'

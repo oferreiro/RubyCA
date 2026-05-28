@@ -25,7 +25,7 @@ Sequel.migration do
     
     create_table(:crls) do
       primary_key :id
-      String :crl, :text=>true
+      String :data, :text=>true
       foreign_key :certificate_id, :certificates, unique: true, null: false
     end
     
