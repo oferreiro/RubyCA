@@ -5,7 +5,6 @@ require 'core/aux'
 require 'sequel'
 require 'sqlite3'
 
-#Sequel.connect('sqlite://db/rubyca.db')
 DB = Sequel.connect(adapter: :sqlite, database: "#{$root_dir}/db/rubyca-#{ENV['APP_ENV']}.db", logger: Logger.new("log/db-#{ENV['APP_ENV']}.log"))
 
 require 'core/models/config'

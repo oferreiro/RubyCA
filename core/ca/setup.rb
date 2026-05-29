@@ -246,7 +246,7 @@ def first_run_setup(unsafe=false)
     puts '* If you unable to run sudo, use unsafe param with caution:                         *'
     puts '* ./RubyCA --unsafe                                                                 *'
     puts '* or                                                                                *'
-    puts '* sudo bundle exec rake "ca:setup[unsafe]"                                          *'
+    puts '* bundle exec rake "ca:setup[unsafe]"                                               *'
     puts '*************************************************************************************'
     puts ''
     

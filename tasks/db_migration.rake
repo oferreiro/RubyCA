@@ -10,7 +10,7 @@ require 'fileutils'
 
 namespace :db do
   Sequel.extension :migration
-    
+
   desc "Generates a migration file with a timestamp and name"
   task :generate_migration, :name do |_, args|
     abort "Usage: rake db:generate_migration[migration_name]" unless args[:name]
@@ -45,6 +45,10 @@ namespace :db do
 
   desc "Perform migration up to latest migration available"
   task :migrate do
+    unless Dir.exist?("#{$root_dir}/log")
+      FileUtils.mkdir_p("#{$root_dir}/log")
+    end
+
     DB = Sequel.connect(adapter: :sqlite, database: "#{$root_dir}/db/rubyca-#{ENV['APP_ENV']}.db", logger: Logger.new("log/db-migration-#{ENV['APP_ENV']}.log"))
     Sequel::Migrator.run(DB, "#{$root_dir}/db/migrations")
     Rake::Task['db:version'].execute
@@ -68,8 +72,8 @@ namespace :db do
   desc "Perform database migration from DataMapper to Sequel"
   task :migrate_dm_to_sequel do
     DB = Sequel.connect(adapter: :sqlite, database: "#{$root_dir}/db/rubyca-#{ENV['APP_ENV']}.db", logger: Logger.new("log/db-migration-#{ENV['APP_ENV']}.log"))
-    puts "Connect legacy DM database #{$root_dir}/RubyCa.db"
-    DBO = Sequel.connect(adapter: :sqlite, database: "#{$root_dir}/RubyCa.db", logger: Logger.new("log/migration-db-legacy-dm-#{ENV['APP_ENV']}.log"))
+    puts "Connect legacy DM database #{$root_dir}/RubyCA.db"
+    DBO = Sequel.connect(adapter: :sqlite, database: "#{$root_dir}/RubyCA.db", logger: Logger.new("log/migration-db-legacy-dm-#{ENV['APP_ENV']}.log"))
     DB[:certificate_schemas].multi_insert(DBO[:ruby_ca_core_models_certificate_schemas].all)
     DB[:certificates].multi_insert(DBO[:ruby_ca_core_models_certificates].all)
     DB[:configs].multi_insert(DBO[:ruby_ca_core_models_configs].all)
@@ -90,6 +94,7 @@ namespace :db do
     require 'core/ca/setup'
 
     puts "Please type key password to #{$root_dir}/private/root_ca.pem"
+    puts "Root password is required to generate new CRL with signed by root CA from legacy DM database."
 
     enc_key = File.read("#{$root_dir}/private/root_ca.pem")
     key_pass = STDIN.noecho(&:gets).chomp
@@ -98,8 +103,8 @@ namespace :db do
     root_cert  = OpenSSL::X509::Certificate.new root_rec.crt
     create_crl(root_rec.id, root_key, root_cert, 3650)
 
-    puts "Connect legacy DM database #{$root_dir}/RubyCa.db"
-    DBO = Sequel.connect(adapter: :sqlite, database: "#{$root_dir}/RubyCa.db", logger: Logger.new("log/migration-db-legacy-dm-#{ENV['APP_ENV']}.log"))
+    puts "Connect legacy DM database #{$root_dir}/RubyCA.db"
+    DBO = Sequel.connect(adapter: :sqlite, database: "#{$root_dir}/RubyCA.db", logger: Logger.new("log/migration-db-legacy-dm-#{ENV['APP_ENV']}.log"))
 
     intermediate_rec = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['intermediate']['cn'])
     intermediate_legacy_crl = DBO[:ruby_ca_core_models_crls].order(:id).last

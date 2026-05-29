@@ -27,7 +27,7 @@ namespace :ca do
     require 'core/load'
     require 'core/bootstrap'
     require 'core/ca/setup'
-    puts "Please type key password to #{$root_dir}/private/root_ca.pem"    
+    puts "Please type key password to #{$root_dir}/private/root_ca.pem"
     key_pass = STDIN.noecho(&:gets).chomp
     renew_root_certificate(key_pass)
     puts "Root CA certificate and CRL renewed successfully."
