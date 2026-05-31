@@ -1,0 +1,21 @@
+%h2 Unrevoke Certificate
+%legend Selected Certificate
+%table.table.table-striped.table-hover.table-sm
+  %thead
+    %tr
+      %th Common Name
+  %tbody
+    %tr
+      %td 
+        = @crt.cn
+
+%form#csr.form-horizontal{ action: "/admin/certificates/#{@crt.cn}/unrevoke", method: 'post' }
+  %fieldset
+    %legend Enter Intermediate Passphrase to Unrevoke Certificate
+    .mb-3
+      %label{ for: 'intermediate' } Intermediate CA Key
+      %input.form-control#intermediate{ name: 'passphrase[intermediate]', type: 'password', placeholder: '' }
+    .mb-3      
+      %button.btn.btn-primary{ :type => 'submit' }
+        %i.fas.fa-undo
+        Unrevoke  

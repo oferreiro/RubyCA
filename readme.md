@@ -36,7 +36,13 @@ Create the ./config/rubyca.yml file and edit to suit your requirements.
     $ cp ./config/rubyca.yml.sample ./config/rubyca.yml
     $ nano ./config/rubyca.yml
 
-Migrate the database
+Create the .env file with app environments.
+
+    $ cp sample.env .env
+    $ nano .env
+
+Create the database.
+
     $ bundle exec rake db:migrate
 
 If you are migrating from the 2.x.x version, use:
@@ -50,6 +56,7 @@ Basically, it is only to save the root-ca private key in the private directory w
     $ sudo ./RubyCA
     or
     $ sudo bundle exec rake ca:setup
+    $ ./RubyCA
 
 To run in unsafe mode (-u|–unsafe) if you want to keep current user privileges on the root CA private key file.
 In this case, the root-ca private key will save on the private directory root read-only(400) permissions.
@@ -57,6 +64,7 @@ In this case, the root-ca private key will save on the private directory root re
     $ ./RubyCA --unsafe
     or
     $ bundle exec rake "ca:setup[unsafe]"
+    $ ./RubyCA
 
 Visit http://host:port/admin to manage certificates
 

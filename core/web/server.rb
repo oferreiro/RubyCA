@@ -771,6 +771,25 @@ module RubyCA
             end
           end
         end
+
+        get '/root-ca.zip' do
+          root_rec = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['root']['cn'])
+          intermediate_rec = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['intermediate']['cn'])
+          root_crt = OpenSSL::X509::Certificate.new root_rec.crt
+          intermediate_crt = OpenSSL::X509::Certificate.new intermediate_rec.crt
+          root_fname = root_rec.cn.downcase.gsub(/\s+/, '_')
+          intermediate_fname = intermediate_rec.cn.downcase.gsub(/\s+/, '_')
+          
+          zbuf = Zip::OutputStream.write_buffer do |out|
+            out.put_next_entry("#{root_fname}.crt")
+            out.write(root_crt.to_pem)
+            
+            out.put_next_entry("#{intermediate_fname}.crt")
+            out.write(intermediate_crt.to_pem)
+          end
+          content_type :zip
+          zbuf.string
+        end
         
         get '/admin/certificates/:cn.zip' do
           @crt = RubyCA::Core::Models::Certificate.get_by_cn(params[:cn])
@@ -924,7 +943,7 @@ module RubyCA
           intermediate_key = nil
           @crl.data = crl.to_pem
           @crl.save
-          @revokedcert = RubyCA::Core::Models::Revoked.create( cn: @crt.cn, pkey: @crt.pkey, crt: @crt.crt )
+          @revokedcert = RubyCA::Core::Models::Revoked.create(cn: @crt.cn, pkey: @crt.pkey, crt: @crt.crt )
           @revokedcert.save
           @crt.destroy
           flash.next[:success] = "Revoked certificate for '#{@crt.cn}'"
@@ -935,6 +954,60 @@ module RubyCA
           @revokedcert = RubyCA::Core::Models::Revoked.find(id: params[:id])
           @revokedcert.destroy
           flash.next[:success] = "Removed revoked certificate for '#{@revokedcert.id}: #{@revokedcert.cn}'"
+          redirect '/admin/certificates'
+        end
+
+        get '/admin/certificates/:cn/unrevoke' do
+          @crt = RubyCA::Core::Models::Revoked.find(cn: params[:cn])
+          haml :unrevoke
+        end
+
+        post '/admin/certificates/:cn/unrevoke' do
+          revoked_cert_rec = RubyCA::Core::Models::Revoked.find(cn: params[:cn])
+          crt = OpenSSL::X509::Certificate.new revoked_cert_rec.crt
+
+          intermediate_rec = RubyCA::Core::Models::Certificate.find(cn: $config['ca']['intermediate']['cn'])
+          intermediate = OpenSSL::X509::Certificate.new intermediate_rec.crt
+          crl = OpenSSL::X509::CRL.new intermediate_rec.crl.data
+
+          new_revoked = crl.revoked.reject do |revoked_cert|
+            revoked_cert.serial.to_i == crt.serial.to_i
+          end
+
+          new_crl = OpenSSL::X509::CRL.new
+          new_crl.version = 1
+          new_crl.issuer = intermediate.subject
+          new_crl.last_update = Time.now
+          new_crl.next_update = Time.now + 60 * 60 * 24 * 30
+
+          new_revoked.each do |r| 
+            new_crl.add_revoked(r)
+          end
+
+          begin
+            intermediate_key = OpenSSL::PKey::RSA.new intermediate_rec.pkey, params[:passphrase][:intermediate]
+          rescue OpenSSL::PKey::RSAError
+            flash.next[:danger] = "Incorrect intermediate passphrase"
+            redirect "/admin/certificates/#{params[:cn]}/unrevoke"
+          end
+
+          new_crl.sign intermediate_key, OpenSSL::Digest::SHA512.new
+          intermediate_key = nil
+          intermediate_rec.crl.data = new_crl.to_pem
+          intermediate_rec.crl.save
+
+          #move revoked cert to certificates
+          new_crt = RubyCA::Core::Models::Certificate.create(cn: revoked_cert_rec.cn, pkey: revoked_cert_rec.pkey, crt: revoked_cert_rec.crt)
+          new_crt.save
+
+          new_crt = RubyCA::Core::Models::Certificate.find(cn: revoked_cert_rec.cn)
+
+          if (Digest::SHA256.hexdigest(new_crt.crt) != Digest::SHA256.hexdigest(revoked_cert_rec.crt) or Digest::SHA256.hexdigest(new_crt.pkey) != Digest::SHA256.hexdigest(revoked_cert_rec.pkey))
+            flash.next[:danger] = "Unrevoked certificate for '#{revoked_cert_rec.cn}' does not match the revoked certificate. Unrevocation failed."
+            redirect "/admin/certificates/#{params[:cn]}/unrevoke"
+          end
+          revoked_cert_rec.destroy
+          flash.next[:success] = "Unrevoked certificate for '#{revoked_cert_rec.cn}'"
           redirect '/admin/certificates'
         end
         

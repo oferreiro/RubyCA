@@ -26,7 +26,7 @@
 
                 %td
                   .float-end
-                    %form{ :action => "/admin/csrs/#{csr.cn}", :method => 'POST', :onsubmit => "return confirm('Are you sure you want to delete this request?')"  }
+                    %form{ :action => "/admin/csrs/#{csr.cn}", :method => 'POST', :onsubmit => "return confirm('Are you sure do you want to delete this request?')"  }
                       .btn-group{role: 'group' }
                         %a.btn.btn-sm.btn-info{ href: "/admin/csrs/#{csr.cn}/info" , 'data-bs-get' => 'modal',  'data-bs-title' => 'CSR Info' }
                           %i.fas.fa-info-circle

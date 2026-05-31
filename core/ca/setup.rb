@@ -21,7 +21,7 @@ def gen_self_signed_root(cipher = OpenSSL::Cipher::AES256.new(:CFB))
   RubyCA::Core::Models::Config.create( name: 'last_serial', value: root_crt.serial.to_s )
 
   root_crt.version = 2
-  root_crt.not_before = Time.utc(Time.now.year, Time.now.month, Time.now.day, 00, 00, 0)
+  root_crt.not_before = Time.utc(Time.now.year, Time.now.month, Time.now.day, Time.now.hour, Time.now.min,Time.now.sec)
   root_crt.not_after = root_crt.not_before  + ($config['ca']['root']['years'] * 365 * 24 * 60 * 60 - 1) + (($config['ca']['root']['years'] / 4).to_int * 24 * 60 * 60)
   root_crt.public_key = root_key.public_key
   root_crt.subject = root_name
@@ -66,7 +66,7 @@ def gen_intermediate(root_key, root_crt, cipher=OpenSSL::Cipher::AES256.new(:CFB
   @serial.value = intermediate_crt.serial.to_s
   @serial.save
   intermediate_crt.version = 2
-  intermediate_crt.not_before = Time.utc(Time.now.year, Time.now.month, Time.now.day, 00, 00, 0)
+  intermediate_crt.not_before = Time.utc(Time.now.year, Time.now.month, Time.now.day, Time.now.hour, Time.now.min,Time.now.sec)
   intermediate_crt.not_after = intermediate_crt.not_before  + ($config['ca']['intermediate']['years'] * 365 * 24 * 60 * 60 - 1) + (($config['ca']['intermediate']['years'] / 4).to_int * 24 * 60 * 60)
   intermediate_crt.subject = intermediate_csr.subject
   intermediate_crt.public_key = intermediate_csr.public_key
@@ -145,8 +145,8 @@ def renew_root_certificate(key_pass)
   serial.save
 
   root_crt.version = 2
-  root_crt.not_before = Time.utc(Time.now.year, Time.now.month, Time.now.day, 00, 00, 0)
-  root_crt.not_after = root_crt.not_before  + ($config['ca']['root']['years'] * 365 * 24 * 60 * 60 - 1) + (($config['ca']['root']['years'] / 4).to_int * 24 * 60 * 60)
+  root_crt.not_before = Time.utc(Time.now.year, Time.now.month, Time.now.day, Time.now.hour, Time.now.min,Time.now.sec)
+  root_crt.not_after = root_crt.not_before + ($config['ca']['root']['years'] * 365 * 24 * 60 * 60 - 1) + (($config['ca']['root']['years'] / 4).to_int * 24 * 60 * 60)
   root_crt.subject = root_csr.subject
   root_crt.public_key = root_csr.public_key
   root_crt.issuer = root_crt.subject
@@ -192,7 +192,7 @@ def renew_intermediate_certificate(root_key_pass, intermediate_key_pass)
   serial.save
 
   intermediate_crt.version = 2
-  intermediate_crt.not_before = Time.utc(Time.now.year, Time.now.month, Time.now.day, 00, 00, 0)
+  intermediate_crt.not_before = Time.utc(Time.now.year, Time.now.month, Time.now.day, Time.now.hour, Time.now.min,Time.now.sec)
   intermediate_crt.not_after = intermediate_crt.not_before  + ($config['ca']['intermediate']['years'] * 365 * 24 * 60 * 60 - 1) + (($config['ca']['intermediate']['years'] / 4).to_int * 24 * 60 * 60)
   intermediate_crt.subject = intermediate_csr.subject
   intermediate_crt.public_key = intermediate_csr.public_key
