@@ -77,7 +77,7 @@ def gen_intermediate(root_key, root_crt, cipher=OpenSSL::Cipher::AES256.new(:CFB
   intermediate_crt.add_extension intermediate_ef.create_extension 'subjectKeyIdentifier', 'hash'
   intermediate_crt.add_extension intermediate_ef.create_extension 'basicConstraints', 'CA:TRUE', true
   intermediate_crt.add_extension intermediate_ef.create_extension 'keyUsage', 'cRLSign,keyCertSign', true
-  root_crl_id = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['root']['cn']).crl.id
+  root_crl_id = RubyCA::Core::Models::Certificate.find(cn: $config['ca']['root']['cn']).crl.id
   intermediate_crt.add_extension intermediate_ef.create_extension 'crlDistributionPoints', "#{get_crl_dist_uri(root_crl_id)}" unless get_crl_dist_uri(root_crl_id).nil?
 
   intermediate_crt.sign root_key, OpenSSL::Digest::SHA512.new
@@ -116,7 +116,7 @@ end
 def renew_root_crl(key_pass)
   enc_key = File.read($root_dir + "/private/root_ca.pem")
   root_key = OpenSSL::PKey::RSA.new enc_key, key_pass
-  root_rec = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['root']['cn'])
+  root_rec = RubyCA::Core::Models::Certificate.find(cn: $config['ca']['root']['cn'])
   root_cert  = OpenSSL::X509::Certificate.new root_rec.crt
   renew_crl(root_rec.id, root_key, root_cert, 3650)
 end
@@ -124,7 +124,7 @@ end
 def renew_root_certificate(key_pass)
   enc_key = File.read($root_dir + "/private/root_ca.pem")
   root_key = OpenSSL::PKey::RSA.new enc_key, key_pass
-  root_rec = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['root']['cn'])
+  root_rec = RubyCA::Core::Models::Certificate.find(cn: $config['ca']['root']['cn'])
   root_old_cert  = OpenSSL::X509::Certificate.new root_rec.crt
 
   # Create csr
@@ -168,10 +168,10 @@ end
 def renew_intermediate_certificate(root_key_pass, intermediate_key_pass)
   enc_key = File.read($root_dir + "/private/root_ca.pem")
   root_key = OpenSSL::PKey::RSA.new enc_key, root_key_pass
-  root_rec = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['root']['cn'])
+  root_rec = RubyCA::Core::Models::Certificate.find(cn: $config['ca']['root']['cn'])
   root_crt  = OpenSSL::X509::Certificate.new root_rec.crt
   
-  intermediate_rec = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['intermediate']['cn'])
+  intermediate_rec = RubyCA::Core::Models::Certificate.find(cn: $config['ca']['intermediate']['cn'])
   intermediate_key = OpenSSL::PKey::RSA.new intermediate_rec.pkey, intermediate_key_pass
   intermediate_old_cert  = OpenSSL::X509::Certificate.new intermediate_rec.crt
 
@@ -206,7 +206,7 @@ def renew_intermediate_certificate(root_key_pass, intermediate_key_pass)
   intermediate_crt.add_extension intermediate_ef.create_extension 'basicConstraints', 'CA:TRUE', true
   intermediate_crt.add_extension intermediate_ef.create_extension 'keyUsage', 'cRLSign,keyCertSign', true
   
-  root_crl_id = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['root']['cn']).crl.id
+  root_crl_id = RubyCA::Core::Models::Certificate.find(cn: $config['ca']['root']['cn']).crl.id
   intermediate_crt.add_extension intermediate_ef.create_extension 'crlDistributionPoints', "#{get_crl_dist_uri(root_crl_id)}" unless get_crl_dist_uri(root_crl_id).nil?
 
   intermediate_crt.sign root_key, OpenSSL::Digest::SHA512.new

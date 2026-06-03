@@ -94,19 +94,19 @@ namespace :db do
     require 'core/ca/setup'
 
     puts "Please type key password to #{$root_dir}/private/root_ca.pem"
-    puts "Root password is required to generate new CRL with signed by root CA from legacy DM database."
+    puts "Root CA password is required to generate new CRL signed by root CA."
 
     enc_key = File.read("#{$root_dir}/private/root_ca.pem")
     key_pass = STDIN.noecho(&:gets).chomp
     root_key = OpenSSL::PKey::RSA.new enc_key, key_pass
-    root_rec = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['root']['cn'])
+    root_rec = RubyCA::Core::Models::Certificate.find(cn: $config['ca']['root']['cn'])
     root_cert  = OpenSSL::X509::Certificate.new root_rec.crt
     create_crl(root_rec.id, root_key, root_cert, 3650)
 
     puts "Connect legacy DM database #{$root_dir}/RubyCA.db"
     DBO = Sequel.connect(adapter: :sqlite, database: "#{$root_dir}/RubyCA.db", logger: Logger.new("log/migration-db-legacy-dm-#{ENV['APP_ENV']}.log"))
 
-    intermediate_rec = RubyCA::Core::Models::Certificate.get_by_cn($config['ca']['intermediate']['cn'])
+    intermediate_rec = RubyCA::Core::Models::Certificate.find(cn: $config['ca']['intermediate']['cn'])
     intermediate_legacy_crl = DBO[:ruby_ca_core_models_crls].order(:id).last
     if intermediate_legacy_crl
       puts "Migrating intermediate CRL"

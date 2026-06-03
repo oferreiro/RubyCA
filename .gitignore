@@ -1,6 +1,5 @@
 *.pem
 *.crt
-core/ca/last_serial
 tmp/*
 log/*
 *.db

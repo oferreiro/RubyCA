@@ -6,9 +6,6 @@ module RubyCA
 
       class Certificate < Sequel::Model(:certificates)
         one_to_one :crl
-        def self.get_by_cn(cn)
-          self.find(cn: cn) unless self.count == 0
-        end
       end
     end
   end
