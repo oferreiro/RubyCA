@@ -9,6 +9,7 @@ require 'core/web/flash'
 
 configure :development do
 	puts "development mode"
+	puts Gem.loaded_specs.keys
 end
 configure :production do
 	puts "production mode"
@@ -16,6 +17,7 @@ configure :production do
 end
 configure :test do
 	puts "test mode"
+	puts Gem.loaded_specs.keys
 end
 
 run RubyCA::Core::Web::Server

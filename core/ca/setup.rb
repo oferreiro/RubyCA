@@ -3,16 +3,22 @@ if __FILE__ == $0 then
 end
 
 require "etc"
+require "io/console"
   
-def gen_self_signed_root(cipher = OpenSSL::Cipher::AES256.new(:CFB))
+def gen_self_signed_root(key_pass=nil, cipher=OpenSSL::Cipher::AES256.new(:CFB))
   # Generate self signed root
   
   # Create root key
   root_key = OpenSSL::PKey::RSA.new 2048
-  puts ''
-  puts 'Enter a pass phrase for the root CA key. This is not stored by RubyCA.'
+  
   open  "#{$root_dir}/private/root_ca.pem", 'w', 0400 do |io|
-    io.write root_key.export(cipher)
+    puts ''
+    puts 'Enter a pass phrase for the root CA key. This is not stored by RubyCA.'
+    if key_pass.nil?    
+      io.write root_key.export(cipher)
+    else
+      io.write root_key.export(cipher, key_pass)
+    end
   end
   # Create root certificate
   root_name = OpenSSL::X509::Name.parse "/C=#{$config['ca']['root']['country']}/ST=#{$config['ca']['root']['state']}/L=#{$config['ca']['root']['locality']}/O=#{$config['ca']['root']['organisation']}/CN=#{$config['ca']['root']['cn']}"
@@ -44,14 +50,18 @@ def gen_self_signed_root(cipher = OpenSSL::Cipher::AES256.new(:CFB))
   return root_key,root_crt
 end
 
-def gen_intermediate(root_key, root_crt, cipher=OpenSSL::Cipher::AES256.new(:CFB))
+def gen_intermediate(root_key, root_crt, key_pass=nil, cipher=OpenSSL::Cipher::AES256.new(:CFB))
   # Generate intermediate certificate and key
   intermediate_key = OpenSSL::PKey::RSA.new 2048
   puts ''
   puts 'Enter a pass phrase for the intermediate CA key.'
   intermediate_rec = RubyCA::Core::Models::Certificate.create( cn: "#{$config['ca']['intermediate']['cn']}")
-  intermediate_rec.pkey = intermediate_key.export(cipher)
-  
+  if key_pass.nil?
+    intermediate_rec.pkey = intermediate_key.export(cipher)
+  else
+    intermediate_rec.pkey = intermediate_key.export(cipher, key_pass)
+  end
+
   # Generate intermediate csr
   intermediate_csr = OpenSSL::X509::Request.new
   intermediate_csr.version = 0
@@ -216,9 +226,9 @@ def renew_intermediate_certificate(root_key_pass, intermediate_key_pass)
 end
 
 def first_run_setup(unsafe=false)
-  unsafe_mode = false
+  unsafe_mode = unsafe
   ARGV.each do |p|
-    if p === "-u" || p === "--unsafe" || unsafe
+    if p === "-u" || p === "--unsafe"
       unsafe_mode = true
       puts ''
       puts '******************************************************************'
@@ -267,8 +277,8 @@ def first_run_setup(unsafe=false)
   # Common variables
   cipher = OpenSSL::Cipher.new 'AES-256-CBC'
   
-  root_key, root_crt = gen_self_signed_root(cipher)
-  intermediate_key, intermediate_crt = gen_intermediate(root_key, root_crt, cipher)  
+  root_key, root_crt = gen_self_signed_root(nil, cipher)
+  intermediate_key, intermediate_crt = gen_intermediate(root_key, root_crt, nil, cipher)  
   
   # Finish up
   puts ''
