@@ -1,9 +1,15 @@
 if __FILE__ == $0 then abort 'This file forms part of RubyCA and is not designed to be called directly. Please run ./RubyCA instead.' end
 
-def get_crl_dist_uri(crl_id=2)
+def get_crl_dist_uri(crl_id_param=nil)
   # CRL distribuition URI.
   crl_dist_config = $config['ca']['crl']['dist']
-  crldist=nil  
+  crldist=nil
+  crl_id = crl_id_param
+  # return Intermediate CA's CRL distribution URI as default if no CRL ID is provided.
+  if crl_id_param.nil? then
+    crl_id = intermediate_rec = RubyCA::Core::Models::Certificate.find(cn: $config['ca']['intermediate']['cn']).crl.id
+  end
+
   unless RubyCA::Core::Models::Crl.find(id: crl_id).nil? || crl_dist_config.nil? || crl_dist_config['uri_prefix'].nil? || crl_dist_config['uri_prefix'].empty? || crl_dist_config['uri_prefix'] ===''
     crldist = crl_dist_config['uri_prefix'].map{|uri| "URI:#{uri}/ca-#{crl_id}.crl"}.join(',')
   end

@@ -5,6 +5,7 @@ log/*
 *.db
 db/*.db
 .env
+.env*
 core/web/public/tmp
 private
 config/rubyca.yml

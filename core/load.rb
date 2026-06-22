@@ -32,3 +32,9 @@ unless File.exist?(CFG_FILE) or File.file?(CFG_FILE)
 end
 # Load config into global $config
 $config = YAML.load(File.read(CFG_FILE))
+
+if $config['default_cipher'].nil? or $config['default_cipher'].empty?
+  $default_cipher = 'AES-256-CBC'
+else
+  $default_cipher = $config['default_cipher']
+end

@@ -22,14 +22,18 @@
               .dropdown-menu.dropdown-menu-end.dropdown-menu-lg-start
                 %a.dropdown-item{ href: "/admin/certificates/#{crt.cn}.crt" } Certificate (.crt)
             
-                - unless crt.cn === $config['ca']['root']['cn']               
+                - unless crt.cn === $config['ca']['root']['cn']
                   %a.dropdown-item{ href: "/admin/certificates/chain/#{crt.cn}.crt" } Chain (.crt)
                   %a.dropdown-item{ href: "/admin/certificates/#{crt.cn}.pem" } Private Key (.pem)
                 
                 - unless crt.cn === $config['ca']['root']['cn'] or crt.cn === $config['ca']['intermediate']['cn']
+                  .dropdown-divider
                   %a.dropdown-item{ href: "/admin/certificates/decrypted/#{crt.cn}.pem" } Unencrypted Private Key (.pem)
                   %a.dropdown-item{ href: "/admin/certificates/#{crt.cn}.p12" } Bundled PKCS #12 (.p12)
                   %a.dropdown-item{ href: "/admin/certificates/#{crt.cn}.zip" } Ipsec config Windows Install (.zip)
+                  .dropdown-divider
+                  %a.dropdown-item{ href: "/admin/certificates/#{crt.cn}/renew" } Request Certificate Renewal
+
             
             - unless crt.cn === $config['ca']['root']['cn']
               %a.btn.btn-secondary.btn-sm{ href: "/admin/certificates/#{crt.cn}/chpwd" }

@@ -1,0 +1,19 @@
+%h2 Request Certificate Renewal
+%legend Selected Certificate
+%table.table.table-striped.table-hover.table-sm
+  %thead
+    %tr
+      %th Common Name
+  %tbody
+    %tr
+      %td 
+        = @crt.cn
+
+%form#csr.form-horizontal{ action: "/admin/certificates/#{@crt.cn}/renew", method: 'post' }
+  %fieldset
+    %legend Enter key Passphrase
+    .mb-3
+      %label{ for: 'current_password' } Password
+      %input.form-control#current_password{ name: 'passphrase', type: 'password', placeholder: '' }
+    .mb-3
+      %button.btn.btn-primary{ type: 'submit' } Request Renewal

@@ -5,7 +5,7 @@ end
 require "etc"
 require "io/console"
   
-def gen_self_signed_root(key_pass=nil, cipher=OpenSSL::Cipher::AES256.new(:CFB))
+def gen_self_signed_root(key_pass=nil, cipher=OpenSSL::Cipher.new($default_cipher))
   # Generate self signed root
   
   # Create root key
@@ -50,7 +50,7 @@ def gen_self_signed_root(key_pass=nil, cipher=OpenSSL::Cipher::AES256.new(:CFB))
   return root_key,root_crt
 end
 
-def gen_intermediate(root_key, root_crt, key_pass=nil, cipher=OpenSSL::Cipher::AES256.new(:CFB))
+def gen_intermediate(root_key, root_crt, key_pass=nil, cipher=OpenSSL::Cipher.new($default_cipher))
   # Generate intermediate certificate and key
   intermediate_key = OpenSSL::PKey::RSA.new 2048
   puts ''
@@ -275,7 +275,7 @@ def first_run_setup(unsafe=false)
   Dir.mkdir $root_dir + '/private', 0755
   
   # Common variables
-  cipher = OpenSSL::Cipher.new 'AES-256-CBC'
+  cipher = OpenSSL::Cipher.new $default_cipher
   
   root_key, root_crt = gen_self_signed_root(nil, cipher)
   intermediate_key, intermediate_crt = gen_intermediate(root_key, root_crt, nil, cipher)  

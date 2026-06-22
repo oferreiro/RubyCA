@@ -18,28 +18,47 @@ module RubyCA
         mime_type :ocsp, 'application/ocsp-response'
         mime_type :p12, 'application/x-pkcs12'
         mime_type :zip, 'application/zip'
-        
-        
+
+
         keyusages = {
-          'digitalSignature' => true,
-          'dataEncipherment' => true,
-          'keyEncipherment' => false,
-          'keyAgreement' => false,
-          'nonRepudiation' => false,
-          'cRLSign' => false
+          'digitalSignature'  => true,
+          'dataEncipherment'  => true,
+          'keyEncipherment'   => false,
+          'keyAgreement'      => false,
+          'nonRepudiation'    => false,
+          'cRLSign'           => false
         }
         
         extendedkeyusages = { 
-          'clientAuth' => true,
-          'serverAuth' => false,
-          'emailProtection' => false,
-          'ipsecEndSystem' => false,
-          'ipsecTunnel' => false,
-          'ipsecUser' => false,
+          'clientAuth'        => true,
+          'serverAuth'        => false,
+          'emailProtection'   => false,
+          'ipsecEndSystem'    => false,
+          'ipsecTunnel'       => false,
+          'ipsecUser'         => false,
           #'1.3.6.1.5.5.8.2.2' => false #iKEIntermediate
         }
+
+        key_usage_map = {
+          'Digital Signature' => 'digitalSignature',
+          'Non Repudiation'   => 'nonRepudiation',
+          'Key Encipherment'  => 'keyEncipherment',
+          'Data Encipherment' => 'dataEncipherment',
+          'Key Agreement'     => 'keyAgreement',
+          'Certificate Sign'  => 'cRLSign',
+          'CRL Sign'          => 'cRLSign'
+        }
+
+        extended_key_usage_map = {
+          'TLS Web Client Authentication' => 'clientAuth',
+          'TLS Web Server Authentication' => 'serverAuth',
+          'E-mail Protection'             => 'emailProtection',
+          'IPSec End System'              => 'ipsecEndSystem',
+          'IPSec Tunnel'                  => 'ipsecTunnel',
+          'IPSec User'                    => 'ipsecUser'
+        }
         
-        helpers do          
+        helpers do
           def host_allowed?(addr)
             allowed = false
             ip_addr = IPAddress addr
@@ -147,7 +166,26 @@ module RubyCA
           content_type :crl
           crl.to_pem
         end
-                  
+
+        get '/root-ca.zip' do
+          root_rec = RubyCA::Core::Models::Certificate.find(cn: $config['ca']['root']['cn'])
+          intermediate_rec = RubyCA::Core::Models::Certificate.find(cn: $config['ca']['intermediate']['cn'])
+          root_crt = OpenSSL::X509::Certificate.new root_rec.crt
+          intermediate_crt = OpenSSL::X509::Certificate.new intermediate_rec.crt
+          root_fname = root_rec.cn.downcase.gsub(/\s+/, '_')
+          intermediate_fname = intermediate_rec.cn.downcase.gsub(/\s+/, '_')
+          
+          zbuf = Zip::OutputStream.write_buffer do |out|
+            out.put_next_entry("#{root_fname}.crt")
+            out.write(root_crt.to_pem)
+            
+            out.put_next_entry("#{intermediate_fname}.crt")
+            out.write(intermediate_crt.to_pem)
+          end
+          content_type :zip
+          zbuf.string
+        end
+        
         get '/admin/?' do
           haml :admin
         end
@@ -485,7 +523,7 @@ module RubyCA
             st: params[:csr][:st],
             c: params[:csr][:c] )
               
-          cipher = OpenSSL::Cipher.new 'AES-256-CBC'
+          cipher = OpenSSL::Cipher.new $default_cipher
           key = OpenSSL::PKey::RSA.new 2048
           csr_rec.pkey = key.export(cipher, params[:csr][:passphrase])
           csr = OpenSSL::X509::Request.new
@@ -516,43 +554,113 @@ module RubyCA
           redirect '/admin/csrs'
         end
         
-        get '/admin/csrs/:cn/sign/?' do     
-          if RubyCA::Core::Models::Certificate.find(cn: params[:cn])
-            flash.next[:danger] = "A certificate already exists for '#{params[:cn]}', revoke and delete the old certificate before signing this request"
-            redirect '/admin/csrs'
+        get '/admin/csrs/:cn/sign/?' do
+          crt_rec = RubyCA::Core::Models::Certificate.find(cn: params[:cn])
+          @csr_rec = RubyCA::Core::Models::Csr.find(cn: params[:cn])
+          if crt_rec
+            if @csr_rec && @csr_rec.pkey != crt_rec.pkey
+              flash.next[:danger] = "A certificate with different key already exists for '#{params[:cn]}', revoke the old certificate before signing this request"
+              redirect '/admin/csrs'
+            end
           end
           
-          @csr = RubyCA::Core::Models::Csr.find(cn: params[:cn])
+          csr = OpenSSL::X509::Request.new @csr_rec.csr
           @sign = session[:sign]
           
           ku = keyusages.clone
           eku = extendedkeyusages.clone
-          
+
+          # Load current certificate key usages and extended key usages if certificate already exists
+          unless crt_rec.nil?
+            #@san = { DNS: nil, IP: nil, URI: nil, email: nil, RID: nil }
+            @san = {}
+            SAN_PREFIX_MAP = {
+              /^DNS:/               => :DNS,
+              /^IP Address:/        => :IP,
+              /^URI:/               => :URI,
+              /^email:/             => :email,
+              /^(Registered ID:|RID:)/ => :RID
+          }
+
+            ext_req_attribute = csr.attributes.find do |attr| 
+              ["1.2.840.113549.1.9.14", "extReq", "extensionRequest"].include?(attr.oid)
+            end
+
+            if ext_req_attribute              
+              # Decode the ASN.1 to extract the individual extensions
+              asn1_set = OpenSSL::ASN1.decode(ext_req_attribute.value.to_der)
+              asn1_seq = asn1_set.value.first
+
+              asn1_seq.value.each do |ext_asn1|
+                extension = OpenSSL::X509::Extension.new(ext_asn1.to_der)
+                
+                parsed_values = extension.value.split(',').map(&:strip)
+
+                case extension.oid
+                when 'keyUsage', '2.5.29.15'
+                  # Reset all key usages to false, so only the ones that the CSR requested will be activated in the form
+                  ku.each_key { |k| ku[k] = false }
+                  
+                  parsed_values.each do |friendly_name|
+                    hash_key = key_usage_map[friendly_name]
+                    ku[hash_key] = true if hash_key && ku.key?(hash_key)
+                  end
+
+                when 'extendedKeyUsage', '2.5.29.37'
+                  # The same for extended key usages
+                  eku.each_key { |k| eku[k] = false }
+                  
+                  parsed_values.each do |friendly_name|
+                    hash_key = extended_key_usage_map[friendly_name]
+                    eku[hash_key] = true if hash_key && eku.key?(hash_key)
+                  end
+                
+                when 'subjectAltName', '2.5.29.17'
+                  extension.value.split(',').map(&:strip).each do |entry|
+                    
+                    # Find the pattern corresponding to the entry and extract the value in one go
+                    pattern, key = SAN_PREFIX_MAP.find { |regexp, _| entry.match?(regexp) }
+                    
+                    # If a valid pattern is found, remove the prefix and add to the hash
+                    @san[key] = entry.sub(pattern, '') if key
+                  end
+                end
+              end
+              #puts "KeyUsages Updated: #{ku}"
+              #puts "ExtendedKeyUsages Updated: #{eku}"
+            end
+          end
+
           if !session[:sign].nil?
             @san = session[:sign]["subjectAltName"]
-            if !session[:sign]["keyusages"].nil? and session[:sign]["keyusages"] 
+            if !session[:sign]["keyusages"].nil? and session[:sign]["keyusages"]
               session[:sign]["keyusages"].each do |sku,v|
                 ku[sku] = v 
               end
             end
             
-            if !session[:sign]["extendedkeyusages"].nil? and session[:sign]["extendedkeyusages"] 
+            if !session[:sign]["extendedkeyusages"].nil? and session[:sign]["extendedkeyusages"]
               session[:sign]["extendedkeyusages"].each do |seku,v|
                 eku[seku] = v 
               end
             end
           end
+        
           
           haml :sign, :locals => {:keyusages => ku, :extendedkeyusages => eku}
-        end          
-                            
+        end
+
         post '/admin/csrs/:cn/sign/?' do
           session.delete(:sign)
-          if RubyCA::Core::Models::Certificate.find(cn: params[:cn])
-            flash.next[:danger] = "A certificate already exists for '#{params[:cn]}', revoke the old certificate before sign this request"
-            redirect '/admin/csrs'
-          end
+          crt_rec = RubyCA::Core::Models::Certificate.find(cn: params[:cn])
           csr_rec = RubyCA::Core::Models::Csr.find(cn: params[:cn])
+          if crt_rec
+            if csr_rec && csr_rec.pkey != crt_rec.pkey
+              flash.next[:danger] = "A certificate with different key already exists for '#{params[:cn]}', revoke the old certificate before signing this request"
+              redirect '/admin/csrs'
+            end
+          end
+          
           intermediate_rec = RubyCA::Core::Models::Certificate.find(cn: $config['ca']['intermediate']['cn'])
           begin
             intermediate_key = OpenSSL::PKey::RSA.new intermediate_rec.pkey, params[:passphrase][:intermediate]
@@ -561,8 +669,10 @@ module RubyCA
             flash.next[:danger] = "Incorrect intermediate passphrase"
             redirect "/admin/csrs/#{params[:cn]}/sign"
           end
-          
-          crt_rec = RubyCA::Core::Models::Certificate.create( cn: csr_rec.cn, pkey: csr_rec.pkey )
+
+          if crt_rec.nil?
+            crt_rec = RubyCA::Core::Models::Certificate.create( cn: csr_rec.cn, pkey: csr_rec.pkey )
+          end
           csr = OpenSSL::X509::Request.new csr_rec.csr
           intermediate_crt = OpenSSL::X509::Certificate.new intermediate_rec.crt
           crt = OpenSSL::X509::Certificate.new
@@ -586,7 +696,7 @@ module RubyCA
           crt.add_extension crt_ef.create_extension 'subjectKeyIdentifier','hash', false
           altnames = params[:subjectAltName].reject{|k,v| v.empty?}
           crt.add_extension crt_ef.create_extension 'subjectAltName',"#{altnames.map{|san,v| "#{san}:#{v}"}.join(',')}" unless altnames.empty? 
-          crt.add_extension crt_ef.create_extension 'crlDistributionPoints', "#{get_crl_dist_uri}" unless get_crl_dist_uri.nil?
+          crt.add_extension crt_ef.create_extension 'crlDistributionPoints', "#{get_crl_dist_uri(intermediate_rec.crl.id)}" unless get_crl_dist_uri(intermediate_rec.crl.id).nil?
           
           crt.sign intermediate_key, OpenSSL::Digest::SHA512.new
           crt_rec.crt = crt.to_pem
@@ -646,6 +756,7 @@ module RubyCA
         # Certificates
         #
         get '/admin/certificates/?' do
+          puts 'certificates'
           @certificates = RubyCA::Core::Models::Certificate.all
           @revokeds = RubyCA::Core::Models::Revoked.all
           haml :certificates
@@ -769,23 +880,73 @@ module RubyCA
           end
         end
 
-        get '/root-ca.zip' do
-          root_rec = RubyCA::Core::Models::Certificate.find(cn: $config['ca']['root']['cn'])
-          intermediate_rec = RubyCA::Core::Models::Certificate.find(cn: $config['ca']['intermediate']['cn'])
-          root_crt = OpenSSL::X509::Certificate.new root_rec.crt
-          intermediate_crt = OpenSSL::X509::Certificate.new intermediate_rec.crt
-          root_fname = root_rec.cn.downcase.gsub(/\s+/, '_')
-          intermediate_fname = intermediate_rec.cn.downcase.gsub(/\s+/, '_')
-          
-          zbuf = Zip::OutputStream.write_buffer do |out|
-            out.put_next_entry("#{root_fname}.crt")
-            out.write(root_crt.to_pem)
-            
-            out.put_next_entry("#{intermediate_fname}.crt")
-            out.write(intermediate_crt.to_pem)
+        get '/admin/certificates/:cn/renew/?' do
+          @crt = RubyCA::Core::Models::Certificate.find(cn: params[:cn])
+          haml :certificate_renew
+        end
+
+        post '/admin/certificates/:cn/renew/?' do
+          crt_rec = RubyCA::Core::Models::Certificate.find(cn: params[:cn])          
+          if crt_rec.cn === $config['ca']['root']['cn'] || crt_rec.cn === $config['ca']['intermediate']['cn']
+            flash.next[:danger] = "Root and Intermediate renew certificate are disabled on web interface."
+            redirect '/admin/certificates'
           end
-          content_type :zip
-          zbuf.string
+          if RubyCA::Core::Models::Csr.find(cn: params[:cn])
+            flash.next[:danger] = "A certificate signing request already exists for <strong>'Common Name: #{cn}'</strong>"
+            redirect '/admin/csrs'
+          end
+
+          begin
+            deckey = OpenSSL::PKey::RSA.new crt_rec.pkey, params[:passphrase]
+          rescue OpenSSL::PKey::RSAError
+            flash.next[:danger] = "Incorrect key passphrase"
+            redirect "/admin/certificates/#{params[:cn]}/renew"
+          end
+
+          current_crt = OpenSSL::X509::Certificate.new crt_rec.crt
+          fields = {}
+          current_crt.subject.to_a.each do |oid, value, _type|
+            fields[oid] = value if %w[CN O L ST C].include?(oid)
+          end
+
+          
+          csr_rec = RubyCA::Core::Models::Csr.create(
+            cn: fields["CN"],
+            o: fields["O"],
+            l: fields["L"],
+            st: fields["ST"],
+            c: fields["C"] )
+              
+          ext_factory = OpenSSL::X509::ExtensionFactory.new
+          ext_factory.subject_certificate = current_crt
+
+          csr_extensions = current_crt.extensions.map do |ext|
+            ext_value = ext.value
+            # If the extension is subjectAltName, we need to ensure that the value is in the correct format for the CSR
+            if ['subjectAltName', '2.5.29.17'].include?(ext.oid)
+              ext_value = ext_value.gsub('IP Address:', 'IP:')
+                                  .gsub('Registered ID:', 'RID:')
+            end
+            # The value is a comma-separated list of SANs, we need to ensure that each
+            ext_factory.create_ext(ext.oid, ext_value, ext.critical?)
+          end
+
+          ext_req_attribute = OpenSSL::X509::Attribute.new(
+            "1.2.840.113549.1.9.14", # extensionRequest OID
+            OpenSSL::ASN1::Set.new([OpenSSL::ASN1::Sequence.new(csr_extensions)])
+          )
+                    
+          csr_rec.pkey = crt_rec.pkey
+          csr = OpenSSL::X509::Request.new
+          csr.version = 0
+          csr.subject = current_crt.subject
+          csr.add_attribute(ext_req_attribute)
+          csr.public_key = deckey.public_key
+          csr.sign deckey, OpenSSL::Digest::SHA512.new
+          csr_rec.csr = csr.to_pem
+          csr_rec.save
+          flash.next[:success] = "Created certificate signing request for <strong>'#{csr_rec.cn}'</strong>"
+          redirect '/admin/csrs'
         end
         
         get '/admin/certificates/:cn.zip' do
@@ -860,7 +1021,7 @@ module RubyCA
         
         get '/admin/certificates/:cn/chpwd?' do
           @crt = RubyCA::Core::Models::Certificate.find(cn: params[:cn])
-          if @crt.cn === $config['ca']['root']['cn']
+          if @crt.cn === $config['ca']['root']['cn'] 
             flash.next[:danger] = "Cannot change the root password"
             redirect '/admin/certificates'
           end
@@ -879,7 +1040,7 @@ module RubyCA
             
           unless newpw == confirmpw
             flash.next[:danger] = "Password and confirm password does not match."
-            redirect "/admin/certificates/#{params[:cn]}/chpwd"      
+            redirect "/admin/certificates/#{params[:cn]}/chpwd"
           end
                       
           crt_rec = RubyCA::Core::Models::Certificate.find(cn: params[:cn])
@@ -894,7 +1055,7 @@ module RubyCA
               redirect "/admin/certificates/#{params[:cn]}/chpwd"
             end
             
-            cipher = OpenSSL::Cipher.new 'AES-256-CBC'
+            cipher = OpenSSL::Cipher.new $default_cipher
             crt_rec.pkey = deckey.export(cipher, newpw)
             crt_rec.save
             flash.next[:success] = "Key password changed for '#{crt_rec.cn}'"

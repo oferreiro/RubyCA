@@ -8,11 +8,11 @@
   %tbody
     %tr
       %td 
-        = @csr.cn
+        = @csr_rec.cn
       %td 
-        = @csr.o
+        = @csr_rec.o
 
-%form#csr.form-horizontal{ action: "/admin/csrs/#{@csr.cn}/sign", method: 'post' }
+%form#csr.form-horizontal{ action: "/admin/csrs/#{@csr_rec.cn}/sign", method: 'post' }
   %fieldset
     .row
       .col-xs-12.col-md-6
