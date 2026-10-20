@@ -85,7 +85,8 @@ module RubyCA
               if permit_auth
                 response['WWW-Authenticate'] = %(Basic realm="Restricted Area")
               end
-              throw(:halt, [401, "401 - Not authorized!\n"])
+              #throw(:halt, [401, "401 - Not authorized!\n"])
+              throw(:halt, [401, haml(:not_authorized, layout: :layout_hide_menu)])
             end
           end
 
@@ -244,7 +245,17 @@ module RubyCA
               confirm_password = params[:authcfg][:confirm_password]
               enable = params[:authcfg][:enable] == "1" ? true : false
               
-              unless username.nil? || username.empty? || password.nil? || password.empty? || confirm_password.nil? || confirm_password.empty?
+              #Authentication settings cannot be blank if enable is true
+              if username.nil? || username.empty? || password.nil? || password.empty? || confirm_password.nil? || confirm_password.empty?
+                unless enable
+                  $config['web']['admin']['auth']['enable'] = enable
+                  $config['web']['admin']['auth'].delete('username')
+                  $config['web']['admin']['auth'].delete('password')
+                  File.open(CFG_FILE, 'w') {|f| YAML.dump($config, f) } #Store
+                else
+                  flash.next[:danger] = "Username, Password and Confirm Password cannot be blank."
+                end
+              else
                 if password == confirm_password
                   $config['web']['admin']['auth']['username'] = Digest::SHA2.hexdigest(username) 
                   $config['web']['admin']['auth']['password'] = Digest::SHA2.hexdigest(password)
@@ -256,8 +267,6 @@ module RubyCA
                 else
                   flash.next[:danger] = "Password and confirm password does not match."
                 end
-              else
-                flash.next[:danger] = "Username, Password and Confirm Password cannot be blank."
               end
             end
           
@@ -756,7 +765,6 @@ module RubyCA
         # Certificates
         #
         get '/admin/certificates/?' do
-          puts 'certificates'
           @certificates = RubyCA::Core::Models::Certificate.all
           @revokeds = RubyCA::Core::Models::Revoked.all
           haml :certificates
@@ -1197,7 +1205,7 @@ module RubyCA
         
         
         not_found do
-          haml :not_found
+          haml :not_found,  layout: :layout_hide_menu
         end
         
 =begin

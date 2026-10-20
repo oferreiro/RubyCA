@@ -7,7 +7,7 @@ web:
     allowed_ips: [ '127.0.0.1', '::1' ] # Comma separated list of IP addresses that are allowed to access the web admin
     auth:
       enable: false # true require setup user and password on http://<server>:<port>/admin/setup. 
-                    # false permit only allowed_ips without  authentication pass.
+                    # false permit only allowed_ips without authentication pass.
 
 
 # Configuration relating to certificate authority
@@ -42,3 +42,4 @@ privileges:
 #  user: user
 #  group: group
 
+#default_cipher: 'AES-256-CBC'
