@@ -29,6 +29,15 @@
                 %a.nav-link{ href: '/admin/crl' } CRL
               %li.nav-item
                 %a.nav-link{ href: '/admin/config' } Settings
+              - rodauth = request.env['rodauth']
+              - if rodauth&.logged_in?
+                %li.nav-item
+                  %a.nav-link{ href: rodauth.two_factor_manage_path } Two-Factor Auth
+                %li.nav-item
+                  %a.nav-link{ href: '/auth/logout' } Logout
+              - else
+                %li.nav-item
+                  %a.nav-link{ href: '/auth/login' } Login
     %section
       .container
         != styled_flash

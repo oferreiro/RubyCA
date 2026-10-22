@@ -1,0 +1,12 @@
+%h2 Enter Authentication Recovery Code
+%p Use one of your authentication recovery codes to login.
+.col-md-6.col-xs-12
+  %form#recovery-auth-form{ method: 'post', role: 'form' }
+    != rodauth.recovery_auth_additional_form_tags
+    != rodauth.csrf_tag
+    .mb-3
+      %label.form-label{ for: 'recovery-code' }
+        = rodauth.recovery_codes_label
+      != rodauth.input_field_string(rodauth.recovery_codes_param, 'recovery-code', :value=>'', :autocomplete=>'off')
+    .mb-3
+      %button.btn.btn-primary{ type: 'submit' } Authenticate Using Recovery Code

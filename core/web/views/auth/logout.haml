@@ -1,0 +1,7 @@
+%h2 Logout
+%p Are you sure you want to logout?
+.col-md-6.col-xs-12
+  %form#logout-form{ method: 'post', role: 'form' }
+    != rodauth.csrf_tag
+    .mb-3
+      %button.btn.btn-warning{ type: 'submit' } Logout

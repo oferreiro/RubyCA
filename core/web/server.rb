@@ -10,6 +10,7 @@ module RubyCA
         
         use Rack::MethodOverride
         use Rack::Session::Pool
+        use RodauthApp
         register Sinatra::Flash
         set :bind, $config['web']['interface']
         set :port, $config['web']['port']
@@ -60,41 +61,9 @@ module RubyCA
         
         helpers do
           def host_allowed?(addr)
-            allowed = false
-            ip_addr = IPAddress addr
-            
-            $config['web']['admin']['allowed_ips'].each do |allowed_ip|
-              allow = IPAddress allowed_ip
-              if (ip_addr.ipv4? && allow.ipv4?) || (ip_addr.ipv6? && allow.ipv6?)
-                if allow.include? ip_addr
-                  allowed = true
-                  break
-                end
-              end
-            end
-            allowed
-          end
-          
-          def protected!
-            authcfg = $config['web']['admin']['auth']
-            @user = authcfg['username'] unless authcfg.nil? || authcfg.empty?
-            @pass = authcfg['password'] unless authcfg.nil? || authcfg.empty?
-            permit_auth = authcfg['enable'] && !(authcfg.nil? || authcfg.empty? || @user.nil? || @user.empty? || @pass.nil? || @pass.empty?)
-            
-            unless authorized?
-              if permit_auth
-                response['WWW-Authenticate'] = %(Basic realm="Restricted Area")
-              end
-              #throw(:halt, [401, "401 - Not authorized!\n"])
-              throw(:halt, [401, haml(:not_authorized, layout: :layout_hide_menu)])
-            end
+            RubyCA::Core::Web::AccessControl.host_allowed?(addr)
           end
 
-          def authorized?
-            auth = Rack::Auth::Basic::Request.new(request.env)
-            auth.provided? && auth.basic? && auth.credentials && @user == Digest::SHA2.hexdigest(auth.credentials[0]) && @pass == Digest::SHA2.hexdigest(auth.credentials[1])
-          end
-          
           def get_crl_info(id)
             crl_rec = RubyCA::Core::Models::Crl.find(id: id)
             crl = OpenSSL::X509::CRL.new crl_rec.data
@@ -127,7 +96,11 @@ module RubyCA
         before '/admin*' do
           remote_addr = request.env['HTTP_X_REAL_IP'] || request.env['HTTP_X_FORWARDED_FOR'] || request.ip
           unless host_allowed?(remote_addr)
-            protected!
+            # The RodauthApp middleware (core/web/auth.rb) already enforces
+            # this; kept as a defensive fallback in case the middleware stack
+            # is ever mounted without it. Redirects to /auth/login and
+            # enforces 2FA only if the account set it up.
+            env['rodauth'].require_authentication
           end
         end
         
@@ -202,7 +175,7 @@ module RubyCA
           if session[:config].nil? || session[:config][:tab_id].nil?
             @tab_id=0
           else
-            if (0..2).include?(session[:config][:tab_id])
+            if (0..1).include?(session[:config][:tab_id])
               @tab_id=session[:config][:tab_id]
             else
               @tab_id=0
@@ -210,7 +183,6 @@ module RubyCA
             session[:config][:tab_id] = nil
           end
 
-          @authcfg = $config['web']['admin']['auth']
           @allowed_ips = $config['web']['admin']['allowed_ips']
           @my_ip = request.env['HTTP_X_REAL_IP'] || request.env['HTTP_X_FORWARDED_FOR'] || request.ip
           
@@ -225,7 +197,7 @@ module RubyCA
         
         post '/admin/config' do
           unless params[:tab_id].nil?
-            if (0..2).include?(params[:tab_id].to_i)
+            if (0..1).include?(params[:tab_id].to_i)
               tab_id= { tab_id: params[:tab_id].to_i }
               session[:config]=tab_id
             else
@@ -236,40 +208,6 @@ module RubyCA
           end
 
           if File.writable?(CFG_FILE)
-            #Simple User and password auth
-            if !params[:authcfg].nil? && params[:authcfg][:auth] == '1'
-              $config['web']['admin']['auth'] ||={}
-          
-              username = params[:authcfg][:username]
-              password = params[:authcfg][:password]
-              confirm_password = params[:authcfg][:confirm_password]
-              enable = params[:authcfg][:enable] == "1" ? true : false
-              
-              #Authentication settings cannot be blank if enable is true
-              if username.nil? || username.empty? || password.nil? || password.empty? || confirm_password.nil? || confirm_password.empty?
-                unless enable
-                  $config['web']['admin']['auth']['enable'] = enable
-                  $config['web']['admin']['auth'].delete('username')
-                  $config['web']['admin']['auth'].delete('password')
-                  File.open(CFG_FILE, 'w') {|f| YAML.dump($config, f) } #Store
-                else
-                  flash.next[:danger] = "Username, Password and Confirm Password cannot be blank."
-                end
-              else
-                if password == confirm_password
-                  $config['web']['admin']['auth']['username'] = Digest::SHA2.hexdigest(username) 
-                  $config['web']['admin']['auth']['password'] = Digest::SHA2.hexdigest(password)
-                  $config['web']['admin']['auth']['enable'] = enable
-          
-                  File.open(CFG_FILE, 'w') {|f| YAML.dump($config, f) } #Store
-                  $config = YAML.load(File.read(CFG_FILE)) # Reload
-                  flash.next[:success] = "Admin authentication settings stored"
-                else
-                  flash.next[:danger] = "Password and confirm password does not match."
-                end
-              end
-            end
-          
             #Allow IP Address
             if !params[:authcfg].nil? && params[:authcfg][:allow_ip] == '1'
               $config['web']['admin']['allowed_ips'] ||={}

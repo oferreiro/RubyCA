@@ -4,6 +4,7 @@ $root_dir = File.expand_path('..', __FILE__)
 
 require 'core/load'
 require 'core/bootstrap'
+require 'core/web/auth'
 require 'core/web/server'
 require 'core/web/flash'
 
