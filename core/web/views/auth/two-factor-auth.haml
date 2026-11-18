@@ -1,3 +1,5 @@
+-# layout_hide_menu has no flash slot, so render it here
+!= styled_flash
 %h2 Authenticate Using Additional Factor
 - if rodauth.two_factor_auth_links.empty?
   %p
@@ -16,6 +18,6 @@
     in config/rubyca.yml bypass this gate entirely.
 - else
   %p You need to authenticate via an additional factor before continuing.
-  .d-flex.flex-column.gap-2{ style: 'max-width: 20rem' }
+  .d-grid.gap-2
     - rodauth.two_factor_auth_links.each do |_, link, text|
       %a.btn.btn-primary{ href: link, role: 'button' }= text

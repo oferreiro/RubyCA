@@ -148,6 +148,109 @@ class RodauthRakeTest < Minitest::Test
     assert_includes output, "No admin account found for 'nobody@example.com'."
   end
 
+  def test_manage_accounts_lists_accounts_and_quits
+    seed_admin
+    output, status = run_task('rodauth:manage_accounts', 'l', 'q')
+
+    assert_equal 0, status, "task failed: #{output}"
+    assert_includes output, ADMIN_EMAIL
+    assert_includes output, 'none (password only)'
+    assert_includes output, 'Bye.'
+  end
+
+  def test_manage_accounts_exits_cleanly_on_eof
+    output, status = run_task('rodauth:manage_accounts')
+
+    assert_equal 0, status, "task failed: #{output}"
+    assert_includes output, 'No admin accounts.'
+  end
+
+  def test_manage_accounts_adds_account
+    output, status = run_task('rodauth:manage_accounts',
+                              'a', ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_PASSWORD, 'q')
+
+    assert_equal 0, status, "task failed: #{output}"
+    id = DB[:accounts].where(email: ADMIN_EMAIL).get(:id)
+    refute_nil id
+    hash = DB[:account_password_hashes].where(id: id).get(:password_hash)
+    assert BCrypt::Password.new(hash) == ADMIN_PASSWORD
+  end
+
+  def test_manage_accounts_changes_password
+    id = seed_admin
+    output, status = run_task('rodauth:manage_accounts',
+                              'p', ADMIN_EMAIL, 'new secret', 'new secret', 'q')
+
+    assert_equal 0, status, "task failed: #{output}"
+    assert_includes output, "Password changed for '#{ADMIN_EMAIL}'."
+    hash = DB[:account_password_hashes].where(id: id).get(:password_hash)
+    assert BCrypt::Password.new(hash) == 'new secret'
+  end
+
+  def test_manage_accounts_keeps_running_after_an_error
+    id = seed_admin
+    output, status = run_task('rodauth:manage_accounts',
+                              'p', ADMIN_EMAIL, 'one', 'two',
+                              'p', 'nobody@example.com', 'q')
+
+    assert_equal 0, status, "task failed: #{output}"
+    assert_includes output, 'Error: Password and confirm password do not match.'
+    assert_includes output, "Error: No admin account found for 'nobody@example.com'."
+    hash = DB[:account_password_hashes].where(id: id).get(:password_hash)
+    assert BCrypt::Password.new(hash) == ADMIN_PASSWORD, 'the password must be unchanged'
+  end
+
+  def test_manage_accounts_changes_email_and_rejects_duplicates
+    id = seed_admin
+    seed_admin('other@example.com')
+    output, status = run_task('rodauth:manage_accounts',
+                              'e', ADMIN_EMAIL, 'other@example.com',
+                              'e', ADMIN_EMAIL, 'renamed@example.com', 'q')
+
+    assert_equal 0, status, "task failed: #{output}"
+    assert_includes output, "Error: An account for 'other@example.com' already exists."
+    assert_equal 'renamed@example.com', DB[:accounts].where(id: id).get(:email)
+  end
+
+  def test_manage_accounts_deletes_account_with_dependents
+    id = seed_admin
+    seed_admin('other@example.com')
+    DB[:account_otp_keys].insert(id: id, key: 'a' * 32, num_failures: 0, last_use: Time.now)
+    DB[:account_recovery_codes].insert(id: id, code: 'aaaa-bbbb')
+
+    output, status = run_task('rodauth:manage_accounts', 'd', ADMIN_EMAIL, ADMIN_EMAIL, 'q')
+
+    assert_equal 0, status, "task failed: #{output}"
+    assert_includes output, "Admin account '#{ADMIN_EMAIL}' deleted."
+    refute_includes output, 'last admin account'
+    assert_nil DB[:accounts].where(id: id).first
+    assert_nil DB[:account_password_hashes].where(id: id).first
+    assert_nil DB[:account_otp_keys].where(id: id).first
+    assert_empty DB[:account_recovery_codes].where(id: id).all
+  end
+
+  def test_manage_accounts_delete_requires_matching_confirmation
+    seed_admin
+    output, status = run_task('rodauth:manage_accounts', 'd', ADMIN_EMAIL, 'nope', 'q')
+
+    assert_equal 0, status, "task failed: #{output}"
+    assert_includes output, 'last admin account'
+    assert_includes output, 'Confirmation did not match; nothing deleted.'
+    refute_nil DB[:accounts].where(email: ADMIN_EMAIL).first
+  end
+
+  def test_manage_accounts_resets_lockout_and_disables_two_factor
+    id = seed_admin
+    DB[:account_otp_keys].insert(id: id, key: 'a' * 32, num_failures: 5, last_use: Time.now + 3600)
+
+    output, status = run_task('rodauth:manage_accounts', 'r', ADMIN_EMAIL, 't', ADMIN_EMAIL, 'q')
+
+    assert_equal 0, status, "task failed: #{output}"
+    assert_includes output, "TOTP lockout reset for '#{ADMIN_EMAIL}'."
+    assert_includes output, '(1 TOTP key(s), 0 recovery code(s))'
+    assert_nil DB[:account_otp_keys].where(id: id).first
+  end
+
   # The happy path of generate_hmac_secret overwrites config/rubyca.yml
   # (the developer's real, gitignored config), so only the no-overwrite
   # guard is tested here: it must abort before touching the file.

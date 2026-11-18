@@ -98,6 +98,23 @@ class RodauthApp < Roda
     otp_auth_link_text 'Using TOTP'
     recovery_auth_link_text 'Using Recovery Code'
 
+    # The login and second-factor pages (multifactor-auth, otp-auth,
+    # recovery-auth) render without the admin navbar (layout_hide_menu);
+    # every other auth page keeps the shared admin layout. See
+    # hide_menu_view below.
+    login_view do
+      hide_menu_view('login', login_page_title)
+    end
+    two_factor_auth_view do
+      hide_menu_view('two-factor-auth', two_factor_auth_page_title)
+    end
+    otp_auth_view do
+      hide_menu_view('otp-auth', otp_auth_page_title)
+    end
+    recovery_auth_view do
+      hide_menu_view('recovery-auth', recovery_auth_page_title)
+    end
+
     # Don't render the login page for already authenticated admins
     already_logged_in do
       redirect '/admin'
@@ -120,6 +137,15 @@ class RodauthApp < Roda
     # wraps RodauthApp), so Sinatra's /admin/config reads session[:config]
     # and activates the Two-Factor tab.
     auth.class_eval do
+      # Rodauth's own view(page, title), with a per-call override that
+      # swaps in the menu-less layout.
+      def hide_menu_view(page, title)
+        set_title(title)
+        scope.view(_view_opts(page).merge(
+          layout: { path: File.join($root_dir, 'core/web/views/layout_hide_menu.haml') }
+        ))
+      end
+
       def _otp_setup_response
         session[:config] = { tab_id: 2 }
         set_notice_flash otp_setup_notice_flash

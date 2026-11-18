@@ -177,9 +177,8 @@ class RodauthTest < Minitest::Test
     assert_includes last_response.body, 'name="login"'
     assert_includes last_response.body, 'name="password"'
 
-    # Auth pages render inside the shared admin layout (navbar menu).
-    assert_match %r{navbar-nav}, last_response.body
-    assert_match %r{>\s*Settings\s*<}, last_response.body
+    # The login page uses layout_hide_menu: no admin navbar.
+    refute_match %r{navbar-nav}, last_response.body
   end
 
   def test_login_succeeds_with_seeded_account
@@ -323,6 +322,8 @@ class RodauthTest < Minitest::Test
     get '/auth/otp-auth', {}, not_allowed_env
     assert_equal 200, last_response.status
     assert_includes last_response.body, 'Authenticate Using TOTP'
+    # Uses layout_hide_menu: no admin navbar.
+    refute_match %r{navbar-nav}, last_response.body
 
     post '/auth/otp-auth', {
       'otp' => ROTP::TOTP.new(secret).at(Time.now),
@@ -416,6 +417,8 @@ class RodauthTest < Minitest::Test
     get '/auth/multifactor-auth', {}, not_allowed_env
     assert_equal 200, last_response.status
     assert_includes last_response.body, 'Authenticate Using Additional Factor'
+    # Uses layout_hide_menu: no admin navbar.
+    refute_match %r{navbar-nav}, last_response.body
     assert_includes last_response.body, 'Using TOTP',
                     'the TOTP second factor must be offered as a button'
     assert_includes last_response.body, 'Using Recovery Code',
@@ -424,6 +427,8 @@ class RodauthTest < Minitest::Test
     # Follow the recovery code link and authenticate with it
     get '/auth/recovery-auth', {}, not_allowed_env
     assert_equal 200, last_response.status
+    # Uses layout_hide_menu: no admin navbar.
+    refute_match %r{navbar-nav}, last_response.body
 
     post '/auth/recovery-auth', {
       'recovery-code' => codes.first,
