@@ -1105,7 +1105,7 @@ module RubyCA
           crl.sign intermediate_key, OpenSSL::Digest::SHA512.new
           intermediate_key = nil
           intermediate_rec.crl.data = crl.to_pem
-          intermediate_rec.save
+          intermediate_rec.crl.save
           @revoked_rec = RubyCA::Core::Models::Revoked.create(cn: crt_rec.cn, pkey: crt_rec.pkey, crt: crt_rec.crt )
           @revoked_rec.save
           crt_rec.destroy
