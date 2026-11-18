@@ -3,7 +3,7 @@
   %head
     %meta{ charset: 'utf-8' }
     %meta{name: 'viewport', content: 'width=device-width', 'initial-scale' => '1', 'shrink-to-fit' => 'no'}
-    %title RubyCA
+    %title= @title ? "RubyCA - #{@title}" : 'RubyCA'
     %link{ href: '/icons/favicon.ico', rel: 'icon', type: 'image/x-icon'}
     %link{ href: '/fontawesome/css/all.min.css', rel: 'stylesheet' }
     %link{ href: '/bootstrap/css/bootstrap.min.css', rel: 'stylesheet' }
@@ -31,8 +31,6 @@
                 %a.nav-link{ href: '/admin/config' } Settings
               - rodauth = request.env['rodauth']
               - if rodauth&.logged_in?
-                %li.nav-item
-                  %a.nav-link{ href: rodauth.two_factor_manage_path } Two-Factor Auth
                 %li.nav-item
                   %a.nav-link{ href: '/auth/logout' } Logout
               - else

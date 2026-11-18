@@ -16,7 +16,6 @@
     in config/rubyca.yml bypass this gate entirely.
 - else
   %p You need to authenticate via an additional factor before continuing.
-  %ul.list-group
+  .d-flex.flex-column.gap-2{ style: 'max-width: 20rem' }
     - rodauth.two_factor_auth_links.each do |_, link, text|
-      %li.list-group-item
-        %a{ href: link }= text
+      %a.btn.btn-primary{ href: link, role: 'button' }= text

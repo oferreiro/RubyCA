@@ -12,6 +12,23 @@ module RubyCA
       module AccessControl
         module_function
 
+        # Settings edits the allowlist itself (and the 2FA settings), so it
+        # must require a logged-in admin even when the request comes from an
+        # allowlisted IP. Other /admin pages keep the allowlist bypass.
+        AUTHENTICATION_REQUIRED_ADMIN_PATHS = %w[/admin/config /admin/configs].freeze
+
+        def admin_authentication_required?(path, addr, allowed_ips = $config['web']['admin']['allowed_ips'])
+          admin_path_requires_authentication?(path) || !host_allowed?(addr, allowed_ips)
+        end
+
+        def admin_path_requires_authentication?(path)
+          return false if path.nil?
+
+          AUTHENTICATION_REQUIRED_ADMIN_PATHS.any? do |prefix|
+            path == prefix || path.start_with?("#{prefix}/")
+          end
+        end
+
         def host_allowed?(addr, allowed_ips = $config['web']['admin']['allowed_ips'])
           return false if addr.nil? || allowed_ips.nil?
 
@@ -48,8 +65,16 @@ class RodauthApp < Roda
   # Forward requests that this app doesn't halt (any /admin request that
   # passes the gate, unknown /auth/* paths) to the Sinatra app.
   plugin :middleware, next_if_not_found: true
+  # Missing/invalid CSRF token: respond with a plain 400 page instead of
+  # the default behaviour (raising RouteCsrf::InvalidToken, which surfaces
+  # as a 500 to the admin).
+  plugin :route_csrf do
+    response.status = 400
+    "<h2>Invalid request</h2><p>Missing or invalid CSRF token. Go back, reload the page and try again.</p>"
+  end
   plugin :render, views: File.join($root_dir, 'core/web/views/auth'),
-                  engine: 'haml', layout: 'layout'
+                  engine: 'haml',
+                  layout: { path: File.join($root_dir, 'core/web/views/layout.haml') }
   plugin :rodauth do
     enable :login, :logout, :otp, :recovery_codes
 
@@ -58,6 +83,20 @@ class RodauthApp < Roda
     domain { $config['web']['domain'] }       # also feeds the TOTP issuer
     hmac_secret { $config.dig('web', 'admin', 'hmac_secret') }
     title_instance_variable :@title
+
+    # Keep the admin on the page they originally asked for: without these,
+    # require_login / require_two_factor_authenticated drop the requested
+    # path and redirect to / (which Sinatra forwards to /admin), forcing the
+    # user to navigate back to e.g. the recovery-codes page after each step.
+    # Rodauth only stores same-origin GET paths, so this adds no open
+    # redirect surface.
+    login_return_to_requested_location? true
+    two_factor_auth_return_to_requested_location? true
+
+    # Link labels on /auth/multifactor-auth render as buttons, so keep them
+    # short; Rodauth uses these texts only for two_factor_auth_links.
+    otp_auth_link_text 'Using TOTP'
+    recovery_auth_link_text 'Using Recovery Code'
 
     # Don't render the login page for already authenticated admins
     already_logged_in do
@@ -74,6 +113,47 @@ class RodauthApp < Roda
     # right after enrollment can be used immediately.
     after_otp_setup do
       otp_key_ds.update(otp_keys_last_use_column => Time.now - 60)
+    end
+
+    # After TOTP setup return the admin to Settings > Two-Factor Auth (tab 2)
+    # instead of /admin. `session` is the shared Rack session (SessionPool
+    # wraps RodauthApp), so Sinatra's /admin/config reads session[:config]
+    # and activates the Two-Factor tab.
+    auth.class_eval do
+      def _otp_setup_response
+        session[:config] = { tab_id: 2 }
+        set_notice_flash otp_setup_notice_flash
+        redirect '/admin/config'
+      end
+
+      # GET /auth/recovery-codes with no codes yet: render the *add* form
+      # directly instead of the "View" page (which shows no codes). Rodauth's
+      # add-recovery-codes view already renders a password form whose submit
+      # button reads "Add Authentication Recovery Codes".
+      def recovery_codes_view
+        if recovery_codes_available?
+          super
+        else
+          view('add-recovery-codes', 'Add Authentication Recovery Codes')
+        end
+      end
+
+      # After recovery codes are added, return to Settings > Two-Factor Auth
+      # (tab 2) instead of re-rendering the add page. `session` is the shared
+      # Rack session, so Sinatra's /admin/config reads session[:config] and
+      # activates the Two-Factor tab, where "View Auth Recovery Codes" now
+      # shows because codes exist.
+      # When just viewing existing codes (password confirmed, no `add` param),
+      # render Rodauth's add-recovery-codes template which displays the codes.
+      def add_recovery_codes_view
+        if param_or_nil(add_recovery_codes_param)
+          session[:config] = { tab_id: 2 }
+          set_notice_flash recovery_codes_added_notice_flash
+          redirect '/admin/config'
+        else
+          super
+        end
+      end
     end
 
     # The success path has the same UTC/local mismatch: Rodauth stores
@@ -108,7 +188,7 @@ class RodauthApp < Roda
     # flash messages and session rotation work for the redirect to the
     # login page. Sinatra keeps an identical check as a fallback.
     r.on 'admin' do
-      unless RubyCA::Core::Web::AccessControl.host_allowed?(remote_addr)
+      if RubyCA::Core::Web::AccessControl.admin_authentication_required?(request.path, remote_addr)
         rodauth.require_authentication
       end
     end
@@ -119,6 +199,13 @@ class RodauthApp < Roda
   # Mirrors how the Sinatra app determines the client address
   def remote_addr
     env['HTTP_X_REAL_IP'] || env['HTTP_X_FORWARDED_FOR'] || request.ip
+  end
+
+  # The shared main layout (core/web/views/layout.haml) renders auth pages
+  # too and calls the Sinatra helper by this name; provide Rodauth's
+  # Bootstrap-styled flash markup under that name.
+  def styled_flash
+    rodauth_flash_messages
   end
 
   # Bootstrap-styled Rodauth flash messages (Roda flash plugin) for the

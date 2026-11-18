@@ -95,7 +95,7 @@ module RubyCA
         
         before '/admin*' do
           remote_addr = request.env['HTTP_X_REAL_IP'] || request.env['HTTP_X_FORWARDED_FOR'] || request.ip
-          unless host_allowed?(remote_addr)
+          if RubyCA::Core::Web::AccessControl.admin_authentication_required?(request.path, remote_addr)
             # The RodauthApp middleware (core/web/auth.rb) already enforces
             # this; kept as a defensive fallback in case the middleware stack
             # is ever mounted without it. Redirects to /auth/login and
@@ -175,7 +175,7 @@ module RubyCA
           if session[:config].nil? || session[:config][:tab_id].nil?
             @tab_id=0
           else
-            if (0..1).include?(session[:config][:tab_id])
+            if (0..3).include?(session[:config][:tab_id])
               @tab_id=session[:config][:tab_id]
             else
               @tab_id=0
@@ -185,6 +185,8 @@ module RubyCA
 
           @allowed_ips = $config['web']['admin']['allowed_ips']
           @my_ip = request.env['HTTP_X_REAL_IP'] || request.env['HTTP_X_FORWARDED_FOR'] || request.ip
+
+          @crl_dist = $config['ca']['crl'].dig('dist', 'uri_prefix') || []
           
           @vpn_defaults = {}
           config_vpn_defaults = RubyCA::Core::Models::Config.find(name: "vpn_defaults_server_address")
@@ -194,10 +196,20 @@ module RubyCA
           
           haml :config
         end
+
+        # Deep link to a Settings tab (e.g. /admin/config/3 for the CRL
+        # distribution points).
+        get '/admin/config/:tab_id' do
+          tab_id = params[:tab_id]
+          halt 404 unless tab_id =~ /\A[0-3]\z/
+
+          session[:config] = { tab_id: tab_id.to_i }
+          redirect "/admin/config"
+        end
         
         post '/admin/config' do
           unless params[:tab_id].nil?
-            if (0..1).include?(params[:tab_id].to_i)
+            if (0..3).include?(params[:tab_id].to_i)
               tab_id= { tab_id: params[:tab_id].to_i }
               session[:config]=tab_id
             else
@@ -272,6 +284,49 @@ module RubyCA
               end
               flash.next[:success] = "#{msg}"
             end
+
+            # CRL distribution points
+            unless params[:ca].nil? || params[:ca][:crl].nil? || params[:ca][:crl][:dist].nil?
+              crl_dist = params[:ca][:crl][:dist]
+
+              # Add
+              if crl_dist[:add_uri] == '1'
+                if crl_dist[:uri_prefix].to_s.empty?
+                  flash.next[:danger] = "URI is empty."
+                else
+                  $config['ca']['crl']['dist'] ||= {}
+                  $config['ca']['crl']['dist']['uri_prefix'] ||= []
+                  uri_prefixes = $config['ca']['crl']['dist']['uri_prefix']
+
+                  unless uri_prefixes.include? crl_dist[:uri_prefix]
+                    uri_prefixes.push(crl_dist[:uri_prefix])
+                    File.open(CFG_FILE, 'w') {|f| YAML.dump($config, f) } #Store
+                    $config = YAML.load(File.read(CFG_FILE)) # Reload
+                    flash.next[:success] = "<strong>#{crl_dist[:uri_prefix]}</strong> added to crl distribution points list."
+                  else
+                    flash.next[:warning] = "<strong>#{crl_dist[:uri_prefix]}</strong> is already in crl distribution points list."
+                  end
+                end
+              end
+
+              # Remove
+              if crl_dist[:rm_uri] == '1'
+                if crl_dist[:uri_prefix].nil? || crl_dist[:uri_prefix].empty?
+                  flash.next[:warning] = "Select the crl distribution point do you want delete."
+                else
+                  $config['ca']['crl']['dist'] ||= {}
+                  $config['ca']['crl']['dist']['uri_prefix'] ||= []
+
+                  Array(crl_dist[:uri_prefix]).each do |uri_prefix|
+                    $config['ca']['crl']['dist']['uri_prefix'].delete("#{uri_prefix}")
+                  end
+
+                  File.open(CFG_FILE, 'w') {|f| YAML.dump($config, f) } #Store
+                  $config = YAML.load(File.read(CFG_FILE)) # Reload
+                  flash.next[:success] = "<strong>#{Array(crl_dist[:uri_prefix]).join(', ')}</strong> deleted from crl distribution points list."
+                end
+              end
+            end
           else
             flash.next[:danger] = "<strong>#{CFG_FILE}</strong> is not writable. Fix it before set anything here."
           end                  
@@ -287,53 +342,10 @@ module RubyCA
           crl_recs.each do |crl_rec|
             @crl_infos <<  get_crl_info(crl_rec.id)
           end
-          @crl_dist = $config['ca']['crl']['dist']['uri_prefix']
+          @crl_dist = $config['ca']['crl'].dig('dist', 'uri_prefix') || []
           haml :crl
         end
-        
-        post '/admin/crl/config' do
-          if File.writable?(CFG_FILE)
-            
-            #Add
-            if params[:ca][:crl][:dist][:add_uri] == '1'
-              $config['ca']['crl']['dist']['uri_prefix'] ||={}
-              if (params[:ca][:crl][:dist][:uri_prefix]==="")
-                flash.next[:danger] = "URI is empty."
-              else
-                unless $config['ca']['crl']['dist']['uri_prefix'].include? params[:ca][:crl][:dist][:uri_prefix]
-                  $config['ca']['crl']['dist']['uri_prefix'].push(params[:ca][:crl][:dist][:uri_prefix])
-                  File.open(CFG_FILE, 'w') {|f| YAML.dump($config, f) } #Store
-                  $config = YAML.load(File.read(CFG_FILE)) # Reload
-                  flash.next[:success] = "<strong>#{params[:ca][:crl][:dist][:uri_prefix]}</strong> added to crl distribution points list."
-                else
-                  flash.next[:warning] = "<strong>#{params[:ca][:crl][:dist][:uri_prefix]}</strong> is already in crl distribution points list."
-                end
-              end
-            end
-          
-            #Remove
-            if params[:ca][:crl][:dist][:rm_uri] == '1'
-              unless (params[:ca][:crl][:dist][:uri_prefix].nil? || params[:ca][:crl][:dist][:uri_prefix]==="" )
-                $config['ca']['crl']['dist']['uri_prefix'] ||={}
-                params[:ca][:crl][:dist][:uri_prefix].each do |uri_prefix|
-                  $config['ca']['crl']['dist']['uri_prefix'].delete("#{uri_prefix}")
-                end
-            
-                File.open(CFG_FILE, 'w') {|f| YAML.dump($config, f) } #Store
-                $config = YAML.load(File.read(CFG_FILE)) # Reload
-                flash.next[:success] = "<strong>#{params[:ca][:crl][:dist][:uri_prefix]}</strong> deleted from crl distribution points list."
-              else
-                flash.next[:warning] = "Select the crl distribution point do you want delete."
-              end
-            end
-            
-          else
-            flash.next[:danger] = "#{CFG_FILE} is not writable. Fix it before set anything here."
-          end
-          
-          redirect '/admin/crl'
-        end
-                
+
         get '/admin/crl/:id/info' do
           crl_rec = RubyCA::Core::Models::Crl.find(id: params[:id])
           crl = OpenSSL::X509::CRL.new crl_rec.data

@@ -30,23 +30,14 @@
                   %i.fas.fa-sync
                   %span.d-none.d-md-inline Renew
 .row
-  %legend Config
-  .col-md-6.col-xs-12.pull-left
-    %form#cfg_crl_add_uri{ action: '/admin/crl/config', method: 'post' }
-      .mb-3
-        .input-group
-          %input{type: 'hidden', value: '1', name: 'ca[crl][dist][add_uri]'} 
-          %input.form-control#add_uri{ name: 'ca[crl][dist][uri_prefix]', type: 'text', placeholder: 'CRL Distribution Point url', |
-            'title' => 'e.g. http://domain.com/ca/ca.crl http://ca.domain.com/ca.crl', 'data-bs-toggle' => 'tooltip'}
-          
-          %span.input-group-btn
-            %button.btn.btn-primary{ type: 'submit' } Add
-            
-    %form#cfg_crl_rm_uri{ action: '/admin/crl/config', method: 'post' }        
-      .mb-3
-        %input{type: 'hidden', value: '1', name: 'ca[crl][dist][rm_uri]'} 
-        %select.form-control#rm_uri{ multiple: 'true', name: 'ca[crl][dist][uri_prefix][]' }
-          - if !@crl_dist.nil?
-            -@crl_dist.each do |uri|
-              %option{ value: "#{uri}" } #{uri}
-      %button.btn.btn-primary{ type: 'submit' } Remove Selected
+  %legend CRL Distribution Points
+  .col-md-6.col-xs-12
+    - if @crl_dist.nil? || @crl_dist.empty?
+      %p.text-muted No CRL distribution points configured.
+    - else
+      %ul.list-group.mb-3
+        - @crl_dist.each do |uri|
+          %li.list-group-item= uri
+    %a.btn.btn-primary{ href: '/admin/config/3' }
+      %i.fas.fa-cog
+      Manage distribution points
