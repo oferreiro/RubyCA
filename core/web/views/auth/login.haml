@@ -5,7 +5,7 @@
   != rodauth.csrf_tag
   .mb-3
     %label.form-label{ for: 'login' }
-      = rodauth.login_label
+      User
     != rodauth.input_field_string(rodauth.login_param, 'login', :type=>rodauth.login_input_type, :autocomplete=>rodauth.login_field_autocomplete_value)
   .mb-3
     %label.form-label{ for: 'password' }
