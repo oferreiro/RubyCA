@@ -79,7 +79,45 @@ class AccessControlTest < Minitest::Test
     assert admin_auth_required?(nil, '203.0.113.50', ['127.0.0.1'])
   end
 
+  # Sinatra's router matches percent-encoded characters, so encoded or
+  # slash-padded spellings of Settings must still force a login.
+  def test_encoded_config_paths_require_authentication_from_allowed_ip
+    ['/admin/%63onfig', '/admin/conf%69g/3', '/admin/%2563onfig',
+     '/admin//config', '//admin/config', '/admin/%63onfigs'].each do |path|
+      assert admin_auth_required?(path, '127.0.0.1', ['127.0.0.1']), "#{path} must require a login"
+    end
+  end
+
+  def test_client_ip_ignores_forwarding_headers_from_untrusted_peers
+    env = { 'REMOTE_ADDR' => '203.0.113.50',
+            'HTTP_X_REAL_IP' => '127.0.0.1',
+            'HTTP_X_FORWARDED_FOR' => '127.0.0.1' }
+    assert_equal '203.0.113.50', client_ip(env, ['127.0.0.1'])
+  end
+
+  # Rack trusts every private range as a proxy; RubyCA must not, or a LAN
+  # client could claim to be 127.0.0.1.
+  def test_client_ip_does_not_trust_private_peers_by_default
+    env = { 'REMOTE_ADDR' => '192.168.1.5', 'HTTP_X_FORWARDED_FOR' => '127.0.0.1' }
+    assert_equal '192.168.1.5', client_ip(env, ['127.0.0.1', '::1'])
+  end
+
+  def test_client_ip_uses_headers_from_trusted_proxy
+    assert_equal '203.0.113.50',
+                 client_ip({ 'REMOTE_ADDR' => '127.0.0.1', 'HTTP_X_REAL_IP' => '203.0.113.50' }, ['127.0.0.1'])
+    # Without X-Real-IP, only the last X-Forwarded-For hop (appended by the
+    # proxy) counts; earlier entries are client-supplied.
+    assert_equal '203.0.113.50',
+                 client_ip({ 'REMOTE_ADDR' => '127.0.0.1',
+                             'HTTP_X_FORWARDED_FOR' => '127.0.0.1, 203.0.113.50' }, ['127.0.0.1'])
+    assert_equal '127.0.0.1', client_ip({ 'REMOTE_ADDR' => '127.0.0.1' }, ['127.0.0.1'])
+  end
+
   private
+
+  def client_ip(env, trusted_proxies)
+    RubyCA::Core::Web::AccessControl.client_ip(env, trusted_proxies)
+  end
 
   def admin_auth_required?(path, addr, allowed_ips)
     RubyCA::Core::Web::AccessControl.admin_authentication_required?(path, addr, allowed_ips)

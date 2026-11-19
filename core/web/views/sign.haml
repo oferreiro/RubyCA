@@ -13,6 +13,7 @@
         = @csr_rec.o
 
 %form#csr.form-horizontal{ action: "/admin/csrs/#{@csr_rec.cn}/sign", method: 'post' }
+  != csrf_tag
   %fieldset
     .row
       .col-xs-12.col-md-6

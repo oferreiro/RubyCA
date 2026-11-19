@@ -13,6 +13,7 @@
         = @crl_info[:next_update].strftime('%d/%m/%Y %H:%M:%S')  
 
 %form#csr.form-horizontal{ action: '/admin/crl/renew', method: 'post' }
+  != csrf_tag
   %fieldset
     %legend Enter Passphrase
     .mb-3

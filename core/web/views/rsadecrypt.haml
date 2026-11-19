@@ -10,6 +10,7 @@
         = @crt.cn
 
 %form#decrypt_rsa.form-horizontal{ action: "/admin/certificates/decrypted/#{@crt.cn}.pem", method: 'post' }
+  != csrf_tag
   %fieldset
     %legend Enter Passphrase
     .mb-3

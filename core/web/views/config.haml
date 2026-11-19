@@ -10,6 +10,7 @@
     %legend Allowed IPs
 
     %form#config_add_myip{ action: '/admin/config', method: 'post' }
+      != csrf_tag
       .mb-3
         %label{ for: 'allow_current_ip' } Add current IP Address
         .input-group
@@ -20,6 +21,7 @@
             %button.btn.btn-primary{ type: 'submit' } Add my IP
 
     %form#config_add_ip{ action: '/admin/config', method: 'post' }
+      != csrf_tag
       .mb-3
         %label{ for: 'allow_ip' } Add IP Address or Network
         .input-group
@@ -32,6 +34,7 @@
             %button.btn.btn-primary{ type: 'submit' } Add
 
     %form#config_rm_ips{ action: '/admin/config', method: 'post' }
+      != csrf_tag
       .mb-3
         %input{type: 'hidden', value: '0', name: 'tab_id'}
         %input{type: 'hidden', value: '1', name: 'authcfg[disallow_ips]'}
@@ -43,6 +46,7 @@
   #nav-vpn-defaults.tab-pane.fade.col-md-6.col-xs-12{ :class => ('active show' if @tab_id==1),'aria-labelledby' => 'nav-vpn-defaults-tab', :role => 'tabpanel'}
     %legend VPN defaults
     %form#config_vpn_defaults{ action: '/admin/config', method: 'post' }
+      != csrf_tag
       %input{type: 'hidden', value: '1', name: 'tab_id'}
       .mb-3
         %label{ for: 'server_addr' } VPN Default Server Address
@@ -76,6 +80,7 @@
   #nav-crl.tab-pane.fade.col-md-6.col-xs-12{ :class => ('active show' if @tab_id==3),'aria-labelledby' => 'nav-crl-tab', :role => 'tabpanel'}
     %legend CRL Distribution Points
     %form#config_crl_add_uri{ action: '/admin/config', method: 'post' }
+      != csrf_tag
       .mb-3
         %input{type: 'hidden', value: '3', name: 'tab_id'}
         %input{type: 'hidden', value: '1', name: 'ca[crl][dist][add_uri]'}
@@ -87,6 +92,7 @@
             %button.btn.btn-primary{ type: 'submit' } Add
             
     %form#config_crl_rm_uri{ action: '/admin/config', method: 'post' }        
+      != csrf_tag
       .mb-3
         %input{type: 'hidden', value: '3', name: 'tab_id'}
         %input{type: 'hidden', value: '1', name: 'ca[crl][dist][rm_uri]'} 

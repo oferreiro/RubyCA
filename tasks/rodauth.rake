@@ -149,6 +149,18 @@ namespace :rodauth do
       abort 'web.admin.hmac_secret is already set in config/rubyca.yml. Remove it first if you want to generate a new one.'
     end
 
+    # Rodauth derives the TOTP secret from the stored key with HMAC once a
+    # secret is set, so keys enrolled without one would stop matching every
+    # authenticator app and lock those admins out.
+    require 'core/bootstrap'
+    enrolled = DB[:account_otp_keys].join(:accounts, id: :id).select_map(Sequel[:accounts][:email])
+    unless enrolled.empty?
+      abort "TOTP is enrolled without an HMAC secret for: #{enrolled.join(', ')}.\n" \
+            'Setting a secret now would invalidate those authenticators. Run ' \
+            '`rake rodauth:disable_totp` for each account first, generate the secret, ' \
+            'restart RubyCA, then re-enroll TOTP from Settings > Two-Factor Auth.'
+    end
+
     secret = SecureRandom.base64(64)
     $config['web']['admin'] ||= {}
     $config['web']['admin']['hmac_secret'] = secret

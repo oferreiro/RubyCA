@@ -26,7 +26,9 @@ Sequel.migration do
       String :key, :null=>false
       Integer :num_failures, :null=>false, :default=>0
       # last_use drives Rodauth's OTP replay protection (a code cannot be
-      # reused within one interval); it must never be NULL.
+      # reused within one interval). Nullable, but always written as a
+      # local timestamp by core/web/auth.rb: the UTC CURRENT_TIMESTAMP
+      # default reads back in the future and rejects every code.
       DateTime :last_use, :null=>true, :default=>Sequel::CURRENT_TIMESTAMP
     end
 

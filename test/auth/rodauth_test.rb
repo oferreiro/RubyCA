@@ -122,6 +122,61 @@ class RodauthTest < Minitest::Test
     assert_equal '/auth/login', last_response.headers['Location']
   end
 
+  # Sinatra routes '/admin/%63onfig' to the Settings handler, so the
+  # encoded spelling must hit the same forced login.
+  def test_encoded_config_path_requires_login_even_from_allowed_ip
+    get '/admin/%63onfig'
+    assert_equal 302, last_response.status
+    assert_equal '/auth/login', last_response.headers['Location']
+
+    post '/admin/%63onfig', { 'tab_id' => '0' }
+    assert_equal 302, last_response.status
+    assert_equal '/auth/login', last_response.headers['Location']
+  end
+
+  # A client that isn't a trusted proxy can't claim an allowlisted address.
+  def test_spoofed_forwarding_headers_do_not_bypass_login
+    get '/admin', {}, { 'REMOTE_ADDR' => NOT_ALLOWED_IP,
+                        'HTTP_X_REAL_IP' => '127.0.0.1',
+                        'HTTP_X_FORWARDED_FOR' => '127.0.0.1' }
+    assert_equal 302, last_response.status
+    assert_equal '/auth/login', last_response.headers['Location']
+  end
+
+  # Allowlisted IPs need no session, so state-changing admin requests must
+  # carry the per-session form token.
+  def test_admin_post_without_csrf_token_is_rejected
+    post '/admin/cschemas', { 'cschema' => { 'o' => 'Forged' } }
+    assert_equal 403, last_response.status
+    assert_includes last_response.body, 'Invalid or missing form token'
+
+    post '/admin/cschemas', { 'cschema' => { 'o' => 'Forged' }, 'authenticity_token' => 'wrong' }
+    assert_equal 403, last_response.status
+  end
+
+  def test_admin_forms_carry_a_token_that_is_accepted
+    get '/admin/csrs'
+    assert_equal 200, last_response.status
+    token = last_response.body[/name='authenticity_token' value='([^']+)'/, 1]
+    refute_nil token, 'admin forms must render the CSRF token'
+
+    # A blank field fails validation and redirects without writing anything.
+    post '/admin/cschemas', { 'cschema' => { 'o' => '' }, 'authenticity_token' => token }
+    assert_equal 302, last_response.status, 'a valid token must pass the CSRF check'
+    assert_match %r{/admin/cschemas\z}, last_response.headers['Location']
+  end
+
+  # distrib/rubyca-check-crl posts here without a browser session.
+  def test_csrf_exempt_script_endpoint_is_not_rejected
+    begin
+      post '/admin/crl/renew.txt', { 'passphrase' => { 'intermediate' => 'wrong' } }
+      refute_equal 403, last_response.status
+    rescue NoMethodError
+      # The test DB has no intermediate CA, so the handler itself fails:
+      # reaching it proves the CSRF check let the request through.
+    end
+  end
+
   # The Settings page must also enforce the second factor for allowlisted
   # IPs when the account has TOTP configured.
   def test_config_page_enforces_totp_even_from_allowed_ip
@@ -808,7 +863,7 @@ class RodauthTest < Minitest::Test
   private
 
   def not_allowed_env
-    { 'HTTP_X_FORWARDED_FOR' => NOT_ALLOWED_IP }
+    { 'REMOTE_ADDR' => NOT_ALLOWED_IP }
   end
 
   # Seeds an admin account the way `rake rodauth:create_admin` does

@@ -27,6 +27,7 @@
                 %td
                   .float-end
                     %form{ :action => "/admin/csrs/#{csr.cn}", :method => 'POST', :onsubmit => "return confirm('Are you sure do you want to delete this request?')"  }
+                      != csrf_tag
                       .btn-group{role: 'group' }
                         %a.btn.btn-sm.btn-info{ href: "/admin/csrs/#{csr.cn}/info" , 'data-bs-get' => 'modal',  'data-bs-title' => 'CSR Info' }
                           %i.fas.fa-info-circle
@@ -45,6 +46,7 @@
                 
     #nav-create-csr.tab-pane.fade{:class => ('active show' unless @csrs.any? && @csr.nil?),'aria-labelledby' => 'nav-create-csr-tab', :role => 'tabpanel'}      
       %form#csr.form-horizontal{ action: '/admin/csrs', method: 'post' }
+        != csrf_tag
         %fieldset.mb-3
           %legend Create CSR
           .mb-3

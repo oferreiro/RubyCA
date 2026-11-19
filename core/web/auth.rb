@@ -24,9 +24,48 @@ module RubyCA
         def admin_path_requires_authentication?(path)
           return false if path.nil?
 
+          path = normalize_path(path)
           AUTHENTICATION_REQUIRED_ADMIN_PATHS.any? do |prefix|
             path == prefix || path.start_with?("#{prefix}/")
           end
+        end
+
+        # Sinatra's router (Mustermann) also matches percent-encoded
+        # characters, so '/admin/%63onfig' reaches the '/admin/config'
+        # route. Compare the decoded path, with repeated slashes squeezed,
+        # so such spellings can't skip the forced login.
+        def normalize_path(path)
+          decoded = path
+          # Decode repeatedly so double encoding (%2563) can't slip through.
+          3.times do
+            next_decoded = Rack::Utils.unescape_path(decoded)
+            break if next_decoded == decoded
+            decoded = next_decoded
+          end
+          decoded.squeeze('/')
+        rescue ArgumentError
+          path.squeeze('/')
+        end
+
+        DEFAULT_TRUSTED_PROXIES = %w[127.0.0.1 ::1].freeze
+
+        # Client address used for the allowlist. Forwarding headers
+        # (X-Real-IP, X-Forwarded-For) are honoured only when the TCP peer
+        # (REMOTE_ADDR) is a configured reverse proxy (web.trusted_proxies,
+        # default loopback only); otherwise any client could claim to be
+        # 127.0.0.1 and skip the login.
+        def client_ip(env, trusted_proxies = nil)
+          remote_addr = env['REMOTE_ADDR']
+          trusted_proxies ||= $config.dig('web', 'trusted_proxies') || DEFAULT_TRUSTED_PROXIES
+          return remote_addr unless host_allowed?(remote_addr, Array(trusted_proxies))
+
+          real_ip = env['HTTP_X_REAL_IP'].to_s.strip
+          return real_ip unless real_ip.empty?
+
+          # The trusted proxy appends the peer it saw, so the last entry is
+          # the only one it vouches for.
+          forwarded = env['HTTP_X_FORWARDED_FOR'].to_s.split(',').map(&:strip).reject(&:empty?)
+          forwarded.last || remote_addr
         end
 
         def host_allowed?(addr, allowed_ips = $config['web']['admin']['allowed_ips'])
@@ -58,6 +97,11 @@ module RubyCA
   end
 end
 
+if $config.dig('web', 'admin', 'hmac_secret').to_s.empty? && ENV['APP_ENV'] != 'test'
+  warn 'RubyCA: web.admin.hmac_secret is not set. Run `rake rodauth:generate_hmac_secret` ' \
+       'BEFORE any admin enrolls TOTP (adding it later invalidates enrolled authenticators).'
+end
+
 # Rodauth mounted as Rack middleware in front of the Sinatra app
 # (RubyCA::Core::Web::Server). Handles all /auth/* routes and gates
 # /admin/* for requests coming from non-allowed IPs.
@@ -68,7 +112,7 @@ class RodauthApp < Roda
   # Missing/invalid CSRF token: respond with a plain 400 page instead of
   # the default behaviour (raising RouteCsrf::InvalidToken, which surfaces
   # as a 500 to the admin).
-  plugin :route_csrf do
+  plugin :route_csrf do |_token|
     response.status = 400
     "<h2>Invalid request</h2><p>Missing or invalid CSRF token. Go back, reload the page and try again.</p>"
   end
@@ -222,9 +266,9 @@ class RodauthApp < Roda
 
   private
 
-  # Mirrors how the Sinatra app determines the client address
+  # Same client address the Sinatra app uses (AccessControl.client_ip)
   def remote_addr
-    env['HTTP_X_REAL_IP'] || env['HTTP_X_FORWARDED_FOR'] || request.ip
+    RubyCA::Core::Web::AccessControl.client_ip(env)
   end
 
   # The shared main layout (core/web/views/layout.haml) renders auth pages
@@ -237,7 +281,7 @@ class RodauthApp < Roda
   # Bootstrap-styled Rodauth flash messages (Roda flash plugin) for the
   # auth layout. Follows the same markup as core/web/flash.rb.
   def rodauth_flash_messages
-    ''.tap do |out|
+    String.new.tap do |out|
       unless flash[:error].to_s.empty?
         out << "<div class='alert alert-dismissible alert-danger'><button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button><strong>Error: </strong>#{h flash[:error]}</div>\n"
       end

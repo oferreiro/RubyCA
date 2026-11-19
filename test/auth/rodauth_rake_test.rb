@@ -2,6 +2,7 @@ require_relative '../test_helper'
 require 'rake'
 require 'io/console'
 require 'bcrypt'
+require 'rotp'
 
 # Loads every tasks/*.rake the same way `rake` does (the rodauth tasks
 # require core/load/core/bootstrap internally; those are already loaded
@@ -267,6 +268,29 @@ class RodauthRakeTest < Minitest::Test
     assert_includes output, 'web.admin.hmac_secret is already set'
     assert_equal before, File.binread(config_path),
                  'the config file must not be touched by the guard'
+  end
+
+  # Adding an HMAC secret after TOTP enrollment changes the derived TOTP
+  # secret and locks the enrolled admins out, so the task must refuse
+  # (before touching the config file) while OTP keys exist.
+  def test_generate_hmac_secret_refuses_while_totp_is_enrolled
+    config_path = File.join($root_dir, 'config/rubyca.yml')
+    before = File.binread(config_path)
+    original_secret = $config['web']['admin']['hmac_secret']
+    $config['web']['admin']['hmac_secret'] = nil
+
+    id = seed_admin
+    DB[:account_otp_keys].insert(id: id, key: ROTP::Base32.random, last_use: Time.now - 60)
+
+    output, status = run_task('rodauth:generate_hmac_secret')
+
+    assert_equal 1, status
+    assert_includes output, 'TOTP is enrolled without an HMAC secret'
+    assert_includes output, ADMIN_EMAIL
+    assert_equal before, File.binread(config_path),
+                 'the config file must not be touched by the guard'
+  ensure
+    $config['web']['admin']['hmac_secret'] = original_secret
   end
 
   private

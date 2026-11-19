@@ -1,15 +1,25 @@
 if __FILE__ == $0 then abort 'This file forms part of RubyCA and is not designed to be called directly. Please run ./RubyCA instead.' end
 
+require 'securerandom'
+
 module RubyCA
   module Core
     module Web
       class Server < Sinatra::Base
+        # State-changing /admin endpoints called by scripts, not browser
+        # forms, so they can't carry the CSRF token.
+        # distrib/rubyca-check-crl posts here; it also needs the
+        # intermediate CA key passphrase, which a forged request can't supply.
+        CSRF_EXEMPT_PATHS = %w[/admin/crl/renew.txt].freeze
+
         configure :development do
           register Sinatra::Reloader
         end
         
         use Rack::MethodOverride
-        use Rack::Session::Pool
+        # SameSite=Lax keeps the session cookie off cross-site POSTs.
+        # Set `secure: true` here when RubyCA is served over HTTPS only.
+        use Rack::Session::Pool, same_site: :lax, httponly: true
         use RodauthApp
         register Sinatra::Flash
         set :bind, $config['web']['interface']
@@ -64,6 +74,28 @@ module RubyCA
             RubyCA::Core::Web::AccessControl.host_allowed?(addr)
           end
 
+          # HTML-escape user-supplied values interpolated into flash
+          # messages (styled_flash renders them unescaped).
+          def h(value)
+            Rack::Utils.escape_html(value.to_s)
+          end
+
+          # Per-session CSRF token for the Sinatra admin forms (Rodauth's
+          # /auth/* forms use their own route_csrf tokens).
+          def csrf_token
+            session[:admin_csrf_token] ||= SecureRandom.urlsafe_base64(32)
+          end
+
+          def csrf_tag
+            "<input type='hidden' name='authenticity_token' value='#{csrf_token}'>"
+          end
+
+          # Client address for the allowlist; forwarding headers only count
+          # when they come from a trusted proxy (web.trusted_proxies).
+          def client_ip
+            RubyCA::Core::Web::AccessControl.client_ip(request.env)
+          end
+
           def get_crl_info(id)
             crl_rec = RubyCA::Core::Models::Crl.find(id: id)
             crl = OpenSSL::X509::CRL.new crl_rec.data
@@ -94,7 +126,7 @@ module RubyCA
         end
         
         before '/admin*' do
-          remote_addr = request.env['HTTP_X_REAL_IP'] || request.env['HTTP_X_FORWARDED_FOR'] || request.ip
+          remote_addr = client_ip
           if RubyCA::Core::Web::AccessControl.admin_authentication_required?(request.path, remote_addr)
             # The RodauthApp middleware (core/web/auth.rb) already enforces
             # this; kept as a defensive fallback in case the middleware stack
@@ -102,6 +134,25 @@ module RubyCA
             # enforces 2FA only if the account set it up.
             env['rodauth'].require_authentication
           end
+
+          # CSRF: allowlisted IPs need no session, so a cookie check alone
+          # would not stop a cross-site form post from a browser on an
+          # allowlisted host. Every state-changing /admin request must carry
+          # the per-session token rendered by csrf_tag.
+          unless request.get? || request.head? || CSRF_EXEMPT_PATHS.include?(request.path_info)
+            token = params['authenticity_token'].to_s
+            expected = session[:admin_csrf_token].to_s
+            unless !expected.empty? && Rack::Utils.secure_compare(token, expected)
+              halt 403, haml(:invalid_csrf, layout: :layout_hide_menu)
+            end
+          end
+        end
+
+        # Settings (allowlist + 2FA) must always require a login. This filter
+        # pattern matches exactly like the routes it protects (including
+        # percent-encoded spellings), backing up the path check above.
+        before '/admin/config*' do
+          env['rodauth'].require_authentication
         end
         
         get '/' do
@@ -184,7 +235,7 @@ module RubyCA
           end
 
           @allowed_ips = $config['web']['admin']['allowed_ips']
-          @my_ip = request.env['HTTP_X_REAL_IP'] || request.env['HTTP_X_FORWARDED_FOR'] || request.ip
+          @my_ip = client_ip
 
           @crl_dist = $config['ca']['crl'].dig('dist', 'uri_prefix') || []
           
@@ -226,7 +277,7 @@ module RubyCA
               begin
                 ip = IPAddress params[:authcfg][:ip]              
               rescue  
-                flash.next[:danger] =  "Invalid network or ip address! <strong>(#{params[:authcfg][:ip]})</strong>"
+                flash.next[:danger] =  "Invalid network or ip address! <strong>(#{h(params[:authcfg][:ip])})</strong>"
               end
             
               unless ip.nil?          
@@ -240,9 +291,9 @@ module RubyCA
               
                   File.open(CFG_FILE, 'w') {|f| YAML.dump($config, f) } #Store
                   $config = YAML.load(File.read(CFG_FILE)) # Reload
-                  flash.next[:success] = "<strong>#{params[:authcfg][:ip]}</strong> added to allowed ips."
+                  flash.next[:success] = "<strong>#{h(params[:authcfg][:ip])}</strong> added to allowed ips."
                 else
-                  flash.next[:warning] = "<strong>#{params[:authcfg][:ip]}</strong> is already allowed ip address."
+                  flash.next[:warning] = "<strong>#{h(params[:authcfg][:ip])}</strong> is already allowed ip address."
                 end
               end
             end
@@ -257,7 +308,7 @@ module RubyCA
             
               File.open(CFG_FILE, 'w') {|f| YAML.dump($config, f) } #Store
               $config = YAML.load(File.read(CFG_FILE)) # Reload
-              flash.next[:success] = "<strong>#{params[:authcfg][:ips]}</strong> deleted from allowed ips."
+              flash.next[:success] = "<strong>#{h(params[:authcfg][:ips])}</strong> deleted from allowed ips."
             end
 
             # Save vpn defaults settings
@@ -270,7 +321,7 @@ module RubyCA
                 end
                 config_vpn_defaults.value = params[:vpn_defaults][:server_address]
                 config_vpn_defaults.save
-                msg = "</br>server address: <strong>#{params[:vpn_defaults][:server_address]}</strong> Saved"
+                msg = "</br>server address: <strong>#{h(params[:vpn_defaults][:server_address])}</strong> Saved"
               end
 
               unless params[:vpn_defaults][:iface_name].nil?
@@ -280,7 +331,7 @@ module RubyCA
                 end
                 config_vpn_defaults.value = params[:vpn_defaults][:iface_name]
                 config_vpn_defaults.save
-                msg += "</br>interface name: <strong>#{params[:vpn_defaults][:iface_name]}</strong> Saved"
+                msg += "</br>interface name: <strong>#{h(params[:vpn_defaults][:iface_name])}</strong> Saved"
               end
               flash.next[:success] = "#{msg}"
             end
@@ -302,9 +353,9 @@ module RubyCA
                     uri_prefixes.push(crl_dist[:uri_prefix])
                     File.open(CFG_FILE, 'w') {|f| YAML.dump($config, f) } #Store
                     $config = YAML.load(File.read(CFG_FILE)) # Reload
-                    flash.next[:success] = "<strong>#{crl_dist[:uri_prefix]}</strong> added to crl distribution points list."
+                    flash.next[:success] = "<strong>#{h(crl_dist[:uri_prefix])}</strong> added to crl distribution points list."
                   else
-                    flash.next[:warning] = "<strong>#{crl_dist[:uri_prefix]}</strong> is already in crl distribution points list."
+                    flash.next[:warning] = "<strong>#{h(crl_dist[:uri_prefix])}</strong> is already in crl distribution points list."
                   end
                 end
               end
@@ -323,7 +374,7 @@ module RubyCA
 
                   File.open(CFG_FILE, 'w') {|f| YAML.dump($config, f) } #Store
                   $config = YAML.load(File.read(CFG_FILE)) # Reload
-                  flash.next[:success] = "<strong>#{Array(crl_dist[:uri_prefix]).join(', ')}</strong> deleted from crl distribution points list."
+                  flash.next[:success] = "<strong>#{h(Array(crl_dist[:uri_prefix]).join(', '))}</strong> deleted from crl distribution points list."
                 end
               end
             end
@@ -471,7 +522,7 @@ module RubyCA
             cn = params[:csr][:cn]
             session[:csr] = params[:csr]
             session[:csr][:cn] = nil
-            flash.next[:danger] = "A certificate signing request already exists for <strong>'Common Name: #{cn}'</strong>"
+            flash.next[:danger] = "A certificate signing request already exists for <strong>'Common Name: #{h(cn)}'</strong>"
             redirect '/admin/csrs'
           end
           
@@ -492,7 +543,7 @@ module RubyCA
           csr.sign key, OpenSSL::Digest::SHA512.new
           csr_rec.csr = csr.to_pem
           csr_rec.save
-          flash.next[:success] = "Created certificate signing request for <strong>'#{csr_rec.cn}'</strong>"
+          flash.next[:success] = "Created certificate signing request for <strong>'#{h(csr_rec.cn)}'</strong>"
           redirect '/admin/csrs'
         end
         
@@ -504,7 +555,7 @@ module RubyCA
         delete '/admin/csrs/:cn/?' do
           @csr = RubyCA::Core::Models::Csr.find(cn: params[:cn])
           @csr.destroy
-          flash.next[:success] = "Deleted certificate signing request for '#{@csr.cn}'"
+          flash.next[:success] = "Deleted certificate signing request for '#{h(@csr.cn)}'"
           redirect '/admin/csrs'
         end
         
@@ -518,7 +569,7 @@ module RubyCA
           @csr_rec = RubyCA::Core::Models::Csr.find(cn: params[:cn])
           if crt_rec
             if @csr_rec && @csr_rec.pkey != crt_rec.pkey
-              flash.next[:danger] = "A certificate with different key already exists for '#{params[:cn]}', revoke the old certificate before signing this request"
+              flash.next[:danger] = "A certificate with different key already exists for '#{h(params[:cn])}', revoke the old certificate before signing this request"
               redirect '/admin/csrs'
             end
           end
@@ -615,7 +666,7 @@ module RubyCA
           csr_rec = RubyCA::Core::Models::Csr.find(cn: params[:cn])
           if crt_rec
             if csr_rec && csr_rec.pkey != crt_rec.pkey
-              flash.next[:danger] = "A certificate with different key already exists for '#{params[:cn]}', revoke the old certificate before signing this request"
+              flash.next[:danger] = "A certificate with different key already exists for '#{h(params[:cn])}', revoke the old certificate before signing this request"
               redirect '/admin/csrs'
             end
           end
@@ -662,7 +713,7 @@ module RubyCA
           crt_rec.save
           csr_rec.destroy
           intermediate_key = nil
-          flash.next[:success] = "Created certificate for '#{crt_rec.cn}'"
+          flash.next[:success] = "Created certificate for '#{h(crt_rec.cn)}'"
           redirect '/admin/certificates'
         end
         
@@ -707,7 +758,7 @@ module RubyCA
         delete '/admin/cschemas/:id/?' do
           cschema = RubyCA::Core::Models::CertificateSchema.find(id: params[:id])
           cschema.destroy
-          flash.next[:success] = "Deleted certificate schema for '#{cschema.o}'"
+          flash.next[:success] = "Deleted certificate schema for '#{h(cschema.o)}'"
           redirect '/admin/cschemas'
         end
         
@@ -850,7 +901,7 @@ module RubyCA
             redirect '/admin/certificates'
           end
           if RubyCA::Core::Models::Csr.find(cn: params[:cn])
-            flash.next[:danger] = "A certificate signing request already exists for <strong>'Common Name: #{cn}'</strong>"
+            flash.next[:danger] = "A certificate signing request already exists for <strong>'Common Name: #{h(cn)}'</strong>"
             redirect '/admin/csrs'
           end
 
@@ -903,7 +954,7 @@ module RubyCA
           csr.sign deckey, OpenSSL::Digest::SHA512.new
           csr_rec.csr = csr.to_pem
           csr_rec.save
-          flash.next[:success] = "Created certificate signing request for <strong>'#{csr_rec.cn}'</strong>"
+          flash.next[:success] = "Created certificate signing request for <strong>'#{h(csr_rec.cn)}'</strong>"
           redirect '/admin/csrs'
         end
         
@@ -1016,7 +1067,7 @@ module RubyCA
             cipher = OpenSSL::Cipher.new $default_cipher
             crt_rec.pkey = deckey.export(cipher, newpw)
             crt_rec.save
-            flash.next[:success] = "Key password changed for '#{crt_rec.cn}'"
+            flash.next[:success] = "Key password changed for '#{h(crt_rec.cn)}'"
             redirect '/admin/certificates'
           end
         end
@@ -1059,7 +1110,7 @@ module RubyCA
           @revoked_rec = RubyCA::Core::Models::Revoked.create(cn: crt_rec.cn, pkey: crt_rec.pkey, crt: crt_rec.crt )
           @revoked_rec.save
           crt_rec.destroy
-          flash.next[:success] = "Revoked certificate for '#{crt_rec.cn}'"
+          flash.next[:success] = "Revoked certificate for '#{h(crt_rec.cn)}'"
           redirect '/admin/certificates'
         end
 
@@ -1076,7 +1127,7 @@ module RubyCA
         delete '/admin/revokeds/:id/?' do
           revoked_rec = RubyCA::Core::Models::Revoked.find(id: params[:id])
           revoked_rec.destroy
-          flash.next[:success] = "Removed revoked certificate for '#{revoked_rec.id}: #{revoked_rec.cn}'"
+          flash.next[:success] = "Removed revoked certificate for '#{h(revoked_rec.id)}: #{h(revoked_rec.cn)}'"
           redirect '/admin/certificates'
         end
 
@@ -1126,11 +1177,11 @@ module RubyCA
           new_crt = RubyCA::Core::Models::Certificate.find(cn: revoked_cert_rec.cn)
 
           if (Digest::SHA256.hexdigest(new_crt.crt) != Digest::SHA256.hexdigest(revoked_cert_rec.crt) or Digest::SHA256.hexdigest(new_crt.pkey) != Digest::SHA256.hexdigest(revoked_cert_rec.pkey))
-            flash.next[:danger] = "Unrevoked certificate for '#{revoked_cert_rec.cn}' does not match the revoked certificate. Unrevocation failed."
+            flash.next[:danger] = "Unrevoked certificate for '#{h(revoked_cert_rec.cn)}' does not match the revoked certificate. Unrevocation failed."
             redirect "/admin/certificates/#{params[:cn]}/unrevoke"
           end
           revoked_cert_rec.destroy
-          flash.next[:success] = "Unrevoked certificate for '#{revoked_cert_rec.cn}'"
+          flash.next[:success] = "Unrevoked certificate for '#{h(revoked_cert_rec.cn)}'"
           redirect '/admin/certificates'
         end
         

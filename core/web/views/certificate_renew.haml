@@ -10,6 +10,7 @@
         = @crt.cn
 
 %form#csr.form-horizontal{ action: "/admin/certificates/#{@crt.cn}/renew", method: 'post' }
+  != csrf_tag
   %fieldset
     %legend Enter key Passphrase
     .mb-3
