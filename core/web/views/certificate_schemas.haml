@@ -24,12 +24,14 @@
           %td
             .float-end
               %form{ :action => "/admin/cschemas/#{cschema.id}", :method => 'POST', :onsubmit => "return confirm('Are you sure do you want to delete this schema?')"  }
+                != csrf_tag
                 %input{ type: 'hidden', name: '_method', value: 'DELETE'} 
                 %button.btn.btn-danger.btn-sm{ :type => 'submit' }
                   %i.fas.fa-trash
                   %span.d-none.d-md-inline Delete
                   
 %form#cschema.form-horizontal{ action: '/admin/cschemas', method: 'post' }
+  != csrf_tag
   %fieldset.mb-3
     %legend Create Certificate Schema
     .row

@@ -1,0 +1,12 @@
+-# layout_hide_menu has no flash slot, so render it here
+!= styled_flash
+%h2 Authenticate Using TOTP
+%form#otp-auth-form{ method: 'post', role: 'form' }
+  != rodauth.otp_auth_additional_form_tags
+  != rodauth.csrf_tag
+  .mb-3
+    %label.form-label{ for: 'otp-auth-code' }
+      = rodauth.otp_auth_label
+    != rodauth.input_field_string(rodauth.otp_auth_param, 'otp-auth-code', :value=>'', :autocomplete=>'off', :inputmode=>'numeric')
+  .mb-3
+    %button.btn.btn-primary{ type: 'submit' } Authenticate Using TOTP

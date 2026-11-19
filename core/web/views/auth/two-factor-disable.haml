@@ -1,0 +1,13 @@
+%h2 Remove All Multifactor Authentication Methods
+%p Are you sure you want to disable all multifactor authentication methods?
+.col-md-6.col-xs-12
+  %form#multifactor-disable-form{ method: 'post', role: 'form' }
+    != rodauth.two_factor_disable_additional_form_tags
+    != rodauth.csrf_tag
+    - if rodauth.two_factor_modifications_require_password?
+      .mb-3
+        %label.form-label{ for: 'password' }
+          = rodauth.password_label
+        != rodauth.input_field_string(rodauth.password_param, 'password', :type=>'password', :autocomplete=>rodauth.password_field_autocomplete_value)
+    .mb-3
+      %button.btn.btn-warning{ type: 'submit' } Remove All Multifactor Authentication Methods

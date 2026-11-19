@@ -3,14 +3,23 @@
   %head
     %meta{ charset: 'utf-8' }
     %meta{name: 'viewport', content: 'width=device-width', 'initial-scale' => '1', 'shrink-to-fit' => 'no'}
-    %title RubyCA
+    %title= @title ? "RubyCA - #{@title}" : 'RubyCA'
     %link{ href: '/icons/favicon.ico', rel: 'icon', type: 'image/x-icon'}
     %link{ href: '/fontawesome/css/all.min.css', rel: 'stylesheet' }
     %link{ href: '/bootstrap/css/bootstrap.min.css', rel: 'stylesheet' }
     %link{ href: '/rubyca.css', rel: 'stylesheet' }
-    
+
   %body
-    %header
-    %section
+    -# Centered single column. %main (not %section) so rubyca.css's
+    -# `body > section > .container` padding doesn't skew vertical centering.
+    %main.d-flex.align-items-center.justify-content-center.min-vh-100.py-4
       .container
-        != yield
+        .row.justify-content-center
+          .col-12.col-sm-10.col-md-8.col-lg-6.col-xl-5
+            != yield
+
+  -# Bootstrap JS: needed for dismissible alerts (flash close button)
+  %script{ src: '/jquery/jquery-4.0.0.min.js' }
+  %script{ src: '/popper/popper.min.js' }
+  %script{ src: '/bootstrap/js/bootstrap.min.js' }
+  %script{ src: '/rubyca.js' }

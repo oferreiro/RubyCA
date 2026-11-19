@@ -1,0 +1,15 @@
+-# layout_hide_menu has no flash slot, so render it here
+!= styled_flash
+%h2 Login
+%form#login-form{ method: 'post', role: 'form' }
+  != rodauth.csrf_tag
+  .mb-3
+    %label.form-label{ for: 'login' }
+      User
+    != rodauth.input_field_string(rodauth.login_param, 'login', :type=>rodauth.login_input_type, :autocomplete=>rodauth.login_field_autocomplete_value)
+  .mb-3
+    %label.form-label{ for: 'password' }
+      = rodauth.password_label
+    != rodauth.input_field_string(rodauth.password_param, 'password', :type=>'password', :autocomplete=>rodauth.password_field_autocomplete_value)
+  .mb-3
+    %button.btn.btn-primary{ type: 'submit' } Login

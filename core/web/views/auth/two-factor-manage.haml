@@ -1,0 +1,17 @@
+%h2 Manage Multifactor Authentication
+- unless rodauth.two_factor_setup_links.empty?
+  %h3 Setup Multifactor Authentication
+  %ul.list-group.mb-3
+    - rodauth.two_factor_setup_links.each do |_, link, text|
+      %li.list-group-item
+        %a{ href: link }= text
+
+- unless rodauth.two_factor_remove_links.empty?
+  %h3 Remove Multifactor Authentication
+  %ul.list-group
+    - rodauth.two_factor_remove_links.each do |_, link, text|
+      %li.list-group-item
+        %a{ href: link }= text
+    - if rodauth.two_factor_remove_links.length > 1
+      %li.list-group-item
+        %a{ href: rodauth.two_factor_disable_path }= rodauth.two_factor_disable_link_text

@@ -1,80 +1,104 @@
 %h2 Settings
 %nav
   #nav-tab.nav.nav-tabs{:role => 'tablist'}
-    %button#nav-auth-tab.nav-link{:class => ('active' if @tab_id==0), 'aria-controls' => 'nav-auth', 'aria-selected' =>  (@tab_id==0 ? 'true': 'false'), 'data-bs-target' => '#nav-auth', 'data-bs-toggle' => 'tab', :role => 'tab', :type => 'button'} Auth
-    %button#nav-net-perm-tab.nav-link{:class => ('active' if @tab_id==1), 'aria-controls' => 'nav-net-perm', 'aria-selected' => (@tab_id==1 ? 'true': 'false'), 'data-bs-target' => '#nav-net-perm', 'data-bs-toggle' => 'tab', :role => 'tab', :type => 'button'} Allowed IPs
-    %button#nav-vpn-defaults-tab.nav-link{:class => ('active' if @tab_id==2),'aria-controls' => 'nav-vpn-defaults', 'aria-selected' => (@tab_id==2 ? 'true': 'false'), 'data-bs-target' => '#nav-vpn-defaults', 'data-bs-toggle' => 'tab', :role => 'tab', :type => 'button'} VPN defaults
+    %button#nav-net-perm-tab.nav-link{:class => ('active' if @tab_id==0), 'aria-controls' => 'nav-net-perm', 'aria-selected' =>  (@tab_id==0 ? 'true': 'false'), 'data-bs-target' => '#nav-net-perm', 'data-bs-toggle' => 'tab', :role => 'tab', :type => 'button'} Allowed IPs
+    %button#nav-vpn-defaults-tab.nav-link{:class => ('active' if @tab_id==1),'aria-controls' => 'nav-vpn-defaults', 'aria-selected' => (@tab_id==1 ? 'true': 'false'), 'data-bs-target' => '#nav-vpn-defaults', 'data-bs-toggle' => 'tab', :role => 'tab', :type => 'button'} VPN defaults
+    %button#nav-twofactor-tab.nav-link{:class => ('active' if @tab_id==2), 'aria-controls' => 'nav-twofactor', 'aria-selected' => (@tab_id==2 ? 'true': 'false'), 'data-bs-target' => '#nav-twofactor', 'data-bs-toggle' => 'tab', :role => 'tab', :type => 'button'} Two-Factor Auth
+    %button#nav-crl-tab.nav-link{:class => ('active' if @tab_id==3), 'aria-controls' => 'nav-crl', 'aria-selected' => (@tab_id==3 ? 'true': 'false'), 'data-bs-target' => '#nav-crl', 'data-bs-toggle' => 'tab', :role => 'tab', :type => 'button'} CRL Distribution Points
 #nav-tabContent.tab-content
-  #nav-auth.tab-pane.fade.col-md-6.col-xs-12{:class => ('active show' if @tab_id==0),'aria-labelledby' => 'nav-auth-tab', :role => 'tabpanel'}
-    %legend Authentication
-    %form#config_auth{ action: '/admin/config', method: 'post' }
-      %fieldset
-        %input{type: 'hidden', value: '1', name: 'authcfg[auth]'} 
-        %input{type: 'hidden', value: '0', name: 'tab_id'} 
-        .mb-3
-          %label{ for: 'username' } Username
-          %input.form-control#username{ name: 'authcfg[username]', type: 'text', placeholder: @authcfg.nil? || @authcfg['username'].nil? ? 'prefer not admin, root etc' : 'Username already created' }
-        .mb-3
-          %label{ for: 'password' } Password
-          %input.form-control#password{ name:'authcfg[password]', type:'password', placeholder:  @authcfg.nil? || @authcfg['password'].nil? ? '' : 'Password already created'}
-        .mb-3
-          %label{ for: 'confirm_password' } Confirm Password
-          %input.form-control#confirm_password{ name:'authcfg[confirm_password]', type:'password'}
-          
-        .mb-3
-          .form-check
-            %label.form-check-label{ for: 'enable' }
-            %input.form-check-input#enable{ type: 'checkbox', name: 'authcfg[enable]', value: 1, checked: @authcfg.nil? ? false : @authcfg['enable'] } Enable authentication for not allowed IPs
-        .mb-3
-          %button.btn.btn-primary{ type: 'submit' } Set
-          
-  #nav-net-perm.tab-pane.fade.col-md-6.col-xs-12{:class => ('active show' if @tab_id==1),'aria-labelledby' => 'nav-net-perm-tab', :role => 'tabpanel'}
+  #nav-net-perm.tab-pane.fade.col-md-6.col-xs-12{:class => ('active show' if @tab_id==0),'aria-labelledby' => 'nav-net-perm-tab', :role => 'tabpanel'}
     %legend Allowed IPs
-    
+
     %form#config_add_myip{ action: '/admin/config', method: 'post' }
+      != csrf_tag
       .mb-3
         %label{ for: 'allow_current_ip' } Add current IP Address
         .input-group
-          %input{type: 'hidden', value: '1', name: 'tab_id'}  
-          %input{type: 'hidden', value: '1', name: 'authcfg[allow_ip]'} 
+          %input{type: 'hidden', value: '0', name: 'tab_id'}
+          %input{type: 'hidden', value: '1', name: 'authcfg[allow_ip]'}
           %input.form-control#allow_current_ip{type: 'text', name: 'authcfg[ip]', value: "#{@my_ip}", placeholder: "#{@my_ip}", readonly: 'true'}
           %span.input-group-btn
             %button.btn.btn-primary{ type: 'submit' } Add my IP
-    
+
     %form#config_add_ip{ action: '/admin/config', method: 'post' }
+      != csrf_tag
       .mb-3
         %label{ for: 'allow_ip' } Add IP Address or Network
         .input-group
-          %input{type: 'hidden', value: '1', name: 'tab_id'} 
+          %input{type: 'hidden', value: '0', name: 'tab_id'}
           %input{type: 'hidden', value: '1', name: 'authcfg[allow_ip]'}
           %input.form-control#allow_ip{ name: 'authcfg[ip]', type: 'text', placeholder: 'ipv4 or ipv6 network or ipaddress', |
             'title' => 'e.g. 192.168.0.122 10.0.0.0/24 fdf8:e6f6:68cd::/48 fdfd:590e:52b2::1', 'data-bs-toggle' => 'tooltip'}
-            
+
           %span.input-group-btn
             %button.btn.btn-primary{ type: 'submit' } Add
-    
-    %form#config_rm_ips{ action: '/admin/config', method: 'post' }      
-      .mb-3        
-        %input{type: 'hidden', value: '1', name: 'tab_id'} 
-        %input{type: 'hidden', value: '1', name: 'authcfg[disallow_ips]'} 
+
+    %form#config_rm_ips{ action: '/admin/config', method: 'post' }
+      != csrf_tag
+      .mb-3
+        %input{type: 'hidden', value: '0', name: 'tab_id'}
+        %input{type: 'hidden', value: '1', name: 'authcfg[disallow_ips]'}
         %select.form-control#allowed_ips{ multiple: 'true', name: 'authcfg[ips][]' }
           -@allowed_ips.each do |ip|
             %option{ value: "#{ip}" } #{ip}
       %button.btn.btn-primary#remove_ip{ type: 'submit' } Remove Selected
-      
-  #nav-vpn-defaults.tab-pane.fade.col-md-6.col-xs-12{ :class => ('active show' if @tab_id==2),'aria-labelledby' => 'nav-vpn-defaults-tab', :role => 'tabpanel'}
+
+  #nav-vpn-defaults.tab-pane.fade.col-md-6.col-xs-12{ :class => ('active show' if @tab_id==1),'aria-labelledby' => 'nav-vpn-defaults-tab', :role => 'tabpanel'}
     %legend VPN defaults
     %form#config_vpn_defaults{ action: '/admin/config', method: 'post' }
-      %input{type: 'hidden', value: '2', name: 'tab_id'} 
+      != csrf_tag
+      %input{type: 'hidden', value: '1', name: 'tab_id'}
       .mb-3
         %label{ for: 'server_addr' } VPN Default Server Address
         %input.form-control#server_addr{ name: 'vpn_defaults[server_address]', type: 'text', placeholder: 'vpn.server.com', value: @vpn_defaults['server_address'] .nil? ? '' : @vpn_defaults['server_address'] }
-      
+
       .mb-3
         %label{ for: 'iface_name' } VPN Default Interface Name
         %input.form-control#iface_name{ name: 'vpn_defaults[iface_name]', type: 'text', placeholder: 'my_vpn', value: @vpn_defaults['iface_name'].nil? ? '' : @vpn_defaults['iface_name'] }
-      
+
       %span.input-group-btn
         %button.btn.btn-primary{ type: 'submit' } Save
-        
-    
+
+  #nav-twofactor.tab-pane.fade.col-md-6.col-xs-12{ :class => ('active show' if @tab_id==2),'aria-labelledby' => 'nav-twofactor-tab', :role => 'tabpanel'}
+    %legend Two-Factor Auth
+    - rodauth = request.env['rodauth']
+    - if rodauth&.logged_in?
+      .d-flex.flex-wrap.gap-2
+        - if rodauth.otp_exists?
+          - if rodauth.recovery_codes_available?
+            %a.btn.btn-primary{ href: rodauth.recovery_codes_path } View Auth Recovery Codes
+          - else
+            %a.btn.btn-primary{ href: rodauth.recovery_codes_path } Add Recovery Codes
+          %a.btn.btn-warning{ href: rodauth.otp_disable_path } Disable TOTP Auth
+        - else
+          %a.btn.btn-primary{ href: rodauth.otp_setup_path } Setup TOTP Auth
+    - else
+      %p
+        %a{ href: '/auth/login' } Log in
+        to manage two-factor authentication.
+
+  #nav-crl.tab-pane.fade.col-md-6.col-xs-12{ :class => ('active show' if @tab_id==3),'aria-labelledby' => 'nav-crl-tab', :role => 'tabpanel'}
+    %legend CRL Distribution Points
+    %form#config_crl_add_uri{ action: '/admin/config', method: 'post' }
+      != csrf_tag
+      .mb-3
+        %input{type: 'hidden', value: '3', name: 'tab_id'}
+        %input{type: 'hidden', value: '1', name: 'ca[crl][dist][add_uri]'}
+        .input-group
+          %input.form-control#add_uri{ name: 'ca[crl][dist][uri_prefix]', type: 'text', placeholder: 'CRL Distribution Point url', |
+            'title' => 'e.g. http://domain.com/ca/ca.crl http://ca.domain.com/ca.crl', 'data-bs-toggle' => 'tooltip'}
+          
+          %span.input-group-btn
+            %button.btn.btn-primary{ type: 'submit' } Add
+            
+    %form#config_crl_rm_uri{ action: '/admin/config', method: 'post' }        
+      != csrf_tag
+      .mb-3
+        %input{type: 'hidden', value: '3', name: 'tab_id'}
+        %input{type: 'hidden', value: '1', name: 'ca[crl][dist][rm_uri]'} 
+        %select.form-control#rm_uri{ multiple: 'true', name: 'ca[crl][dist][uri_prefix][]' }
+          - unless @crl_dist.nil? || @crl_dist.empty?
+            - @crl_dist.each do |uri|
+              %option{ value: "#{uri}" } #{uri}
+      %button.btn.btn-primary{ type: 'submit' } Remove Selected
+

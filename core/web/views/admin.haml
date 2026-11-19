@@ -11,7 +11,7 @@
     #{RUBY_VERSION}
   %p
     %b Remote IP:
-    #{request.env['HTTP_X_REAL_IP'] || request.env['HTTP_X_FORWARDED_FOR'] || request.ip}
+    = client_ip
   %p
     %b Remote Agent:
     #{request.env['HTTP_USER_AGENT']}

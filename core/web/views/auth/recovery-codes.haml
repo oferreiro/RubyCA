@@ -1,0 +1,17 @@
+%h2 Authentication Recovery Codes
+%p
+  Recovery codes can be used to login if you lose access to your TOTP
+  authenticator. Confirm your password to view the current codes or to
+  generate new ones.
+.col-md-6.col-xs-12
+  %form#recovery-codes-form{ method: 'post', role: 'form' }
+    != rodauth.recovery_codes_additional_form_tags
+    != rodauth.csrf_tag
+    - if rodauth.two_factor_modifications_require_password?
+      .mb-3
+        %label.form-label{ for: 'password' }
+          = rodauth.password_label
+        != rodauth.input_field_string(rodauth.password_param, 'password', :type=>'password', :autocomplete=>rodauth.password_field_autocomplete_value)
+    .mb-3
+      %button.btn.btn-primary{ type: 'submit', name: (rodauth.add_recovery_codes_param if rodauth.recovery_codes_button) }
+        = rodauth.recovery_codes_button || rodauth.view_recovery_codes_button

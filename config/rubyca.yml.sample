@@ -3,11 +3,16 @@ web:
   domain: 'localhost' # The domain name to use
   interface: 'localhost' # The interface to bind the web server to, use '0.0.0.0' for all interfaces
   port: 8083 # The port the web server will run on
-  admin: 
-    allowed_ips: [ '127.0.0.1', '::1' ] # Comma separated list of IP addresses that are allowed to access the web admin
-    auth:
-      enable: false # true require setup user and password on http://<server>:<port>/admin/setup. 
-                    # false permit only allowed_ips without authentication pass.
+  # Reverse proxies whose X-Real-IP / X-Forwarded-For headers are trusted for the admin allowlist.
+  # Requests from any other address use the TCP peer address, so clients can't spoof an allowed IP.
+  trusted_proxies: [ '127.0.0.1', '::1' ]
+  admin:
+    allowed_ips: [ '127.0.0.1', '::1' ] # Comma separated list of IP addresses that are allowed to access the web admin without login.
+                                        # Everybody else must authenticate at /auth/login (admin accounts are created with: rake rodauth:create_admin).
+    # Secret used by Rodauth to harden sessions and TOTP setup (strongly recommended).
+    # Generate one with: rake rodauth:generate_hmac_secret -- BEFORE anyone enrolls TOTP
+    # (adding it later invalidates every enrolled authenticator; the task refuses in that case).
+    hmac_secret:
 
 
 # Configuration relating to certificate authority

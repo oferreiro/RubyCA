@@ -1,0 +1,33 @@
+%h2 Setup TOTP Authentication
+%p
+  Scan the QR code with your authenticator app (or enter the secret
+  manually), then confirm with the current authentication code.
+.row
+  .col-lg-6
+    .mb-3
+      %p
+        %b Secret:
+        = rodauth.otp_user_key
+      %p
+        %b Provisioning URL:
+        = rodauth.otp_provisioning_uri
+      .text-center
+        != rodauth.otp_qr_code
+  .col-lg-6
+    %form#otp-setup-form{ method: 'post', role: 'form' }
+      != rodauth.otp_setup_additional_form_tags
+      != rodauth.csrf_tag
+      %input{ type: 'hidden', id: 'otp-key', name: rodauth.otp_setup_param, value: rodauth.otp_user_key }
+      - if rodauth.otp_keys_use_hmac?
+        %input{ type: 'hidden', id: 'otp-hmac-secret', name: rodauth.otp_setup_raw_param, value: rodauth.otp_key }
+      - if rodauth.two_factor_modifications_require_password?
+        .mb-3
+          %label.form-label{ for: 'password' }
+            = rodauth.password_label
+          != rodauth.input_field_string(rodauth.password_param, 'password', :type=>'password', :autocomplete=>rodauth.password_field_autocomplete_value)
+      .mb-3
+        %label.form-label{ for: 'otp-auth-code' }
+          = rodauth.otp_auth_label
+        != rodauth.input_field_string(rodauth.otp_auth_param, 'otp-auth-code', :value=>'', :autocomplete=>'off', :inputmode=>'numeric')
+      .mb-3
+        %button.btn.btn-primary{ type: 'submit' } Setup TOTP Authentication

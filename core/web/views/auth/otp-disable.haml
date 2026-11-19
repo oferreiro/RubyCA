@@ -1,0 +1,13 @@
+%h2 Disable TOTP Authentication
+%p Are you sure you want to disable TOTP authentication?
+.col-md-6.col-xs-12
+  %form#otp-disable-form{ method: 'post', role: 'form' }
+    != rodauth.otp_disable_additional_form_tags
+    != rodauth.csrf_tag
+    - if rodauth.two_factor_modifications_require_password?
+      .mb-3
+        %label.form-label{ for: 'password' }
+          = rodauth.password_label
+        != rodauth.input_field_string(rodauth.password_param, 'password', :type=>'password', :autocomplete=>rodauth.password_field_autocomplete_value)
+    .mb-3
+      %button.btn.btn-warning{ type: 'submit' } Disable TOTP Authentication
